@@ -1,2 +1,32 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# React
+node_modules
+*.log
+logs
+frontend/build
+
+# Environment
+.env
+backend/.env
+
+# Blockchain data
+blockchain_*.db
+wallet_*.dat
 *.db
-*.dat
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
