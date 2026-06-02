@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/elliptic"
 	"encoding/gob"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +10,11 @@ import (
 )
 
 const walletFile = "wallet_%s.dat"
+
+// walletsGobFile is the gob-safe map we actually persist.
+type walletsGobFile struct {
+	Wallets map[string]WalletGob
+}
 
 // Wallets stores a collection of wallets
 type Wallets struct {
@@ -21,9 +25,7 @@ type Wallets struct {
 func NewWallets(nodeID string) (*Wallets, error) {
 	wallets := Wallets{}
 	wallets.Wallets = make(map[string]*Wallet)
-
 	err := wallets.LoadFromFile(nodeID)
-
 	return &wallets, err
 }
 
@@ -31,20 +33,16 @@ func NewWallets(nodeID string) (*Wallets, error) {
 func (ws *Wallets) CreateWallet() string {
 	wallet := NewWallet()
 	address := fmt.Sprintf("%s", wallet.GetAddress())
-
 	ws.Wallets[address] = wallet
-
 	return address
 }
 
 // GetAddresses returns an array of addresses stored in the wallet file
 func (ws *Wallets) GetAddresses() []string {
 	var addresses []string
-
 	for address := range ws.Wallets {
 		addresses = append(addresses, address)
 	}
-
 	return addresses
 }
 
@@ -65,28 +63,32 @@ func (ws *Wallets) LoadFromFile(nodeID string) error {
 		log.Panic(err)
 	}
 
-	var wallets Wallets
-	gob.Register(elliptic.P256())
+	var gobFile walletsGobFile
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
-	err = decoder.Decode(&wallets)
+	err = decoder.Decode(&gobFile)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	ws.Wallets = wallets.Wallets
-
+	ws.Wallets = make(map[string]*Wallet)
+	for addr, wg := range gobFile.Wallets {
+		ws.Wallets[addr] = WalletFromGob(wg)
+	}
 	return nil
 }
 
 // SaveToFile saves wallets to a file
 func (ws Wallets) SaveToFile(nodeID string) {
-	var content bytes.Buffer
 	walletFile := fmt.Sprintf(walletFile, nodeID)
 
-	gob.Register(elliptic.P256())
+	gobFile := walletsGobFile{Wallets: make(map[string]WalletGob)}
+	for addr, w := range ws.Wallets {
+		gobFile.Wallets[addr] = w.ToGob()
+	}
 
+	var content bytes.Buffer
 	encoder := gob.NewEncoder(&content)
-	err := encoder.Encode(ws)
+	err := encoder.Encode(gobFile)
 	if err != nil {
 		log.Panic(err)
 	}
