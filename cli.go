@@ -17,10 +17,11 @@ func (cli *CLI) printUsage() {
 	fmt.Println("  createwallet - Generates a new key-pair and saves it into the wallet file")
 	fmt.Println("  getbalance -address ADDRESS - Get balance of ADDRESS")
 	fmt.Println("  listaddresses - Lists all addresses from the wallet file")
+	fmt.Println("  mine -address ADDRESS - Mine a new block and send the 10 coin reward to ADDRESS")
 	fmt.Println("  printchain - Print all the blocks of the blockchain")
 	fmt.Println("  reindexutxo - Rebuilds the UTXO set")
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT -mine - Send AMOUNT of coins from FROM address to TO. Mine on the same node, when -mine is set.")
-	fmt.Println("  startnode -miner ADDRESS - Start a node with ID specified in NODE_ID env. var. -miner enables mining")
+	fmt.Println("  startnode -miner ADDRESS - Start a node with ID specified in NODE_ID env. var. -miner enables mining and sends reward to ADDRESS")
 }
 
 func (cli *CLI) validateArgs() {
@@ -44,6 +45,7 @@ func (cli *CLI) Run() {
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
 	listAddressesCmd := flag.NewFlagSet("listaddresses", flag.ExitOnError)
+	mineCmd := flag.NewFlagSet("mine", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	reindexUTXOCmd := flag.NewFlagSet("reindexutxo", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
@@ -51,6 +53,7 @@ func (cli *CLI) Run() {
 
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
+	mineAddress := mineCmd.String("address", "", "The address to receive the mining reward")
 	sendFrom := sendCmd.String("from", "", "Source wallet address")
 	sendTo := sendCmd.String("to", "", "Destination wallet address")
 	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
@@ -75,6 +78,11 @@ func (cli *CLI) Run() {
 		}
 	case "listaddresses":
 		err := listAddressesCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "mine":
+		err := mineCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -127,6 +135,14 @@ func (cli *CLI) Run() {
 		cli.listAddresses(nodeID)
 	}
 
+	if mineCmd.Parsed() {
+		if *mineAddress == "" {
+			mineCmd.Usage()
+			os.Exit(1)
+		}
+		cli.mineBlock(*mineAddress, nodeID)
+	}
+
 	if printChainCmd.Parsed() {
 		cli.printChain(nodeID)
 	}
@@ -140,7 +156,6 @@ func (cli *CLI) Run() {
 			sendCmd.Usage()
 			os.Exit(1)
 		}
-
 		cli.send(*sendFrom, *sendTo, *sendAmount, nodeID, *sendMine)
 	}
 

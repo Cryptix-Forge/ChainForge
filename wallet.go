@@ -84,7 +84,9 @@ func ValidateAddress(address string) bool {
 	version := pubKeyHash[0]
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-addressChecksumLen]
 	targetChecksum := checksum(append([]byte{version}, pubKeyHash...))
-	return bytes.Compare(actualChecksum, targetChecksum) == 0
+	// BUG FIX: was bytes.Compare(...) == 0 — bytes.Equal is the idiomatic and
+	// correct way to test byte-slice equality.
+	return bytes.Equal(actualChecksum, targetChecksum)
 }
 
 func checksum(payload []byte) []byte {

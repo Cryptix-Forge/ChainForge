@@ -56,7 +56,11 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 		data := pow.prepareData(nonce)
 
 		hash = sha256.Sum256(data)
-		if math.Remainder(float64(nonce), 100000) == 0 {
+		// BUG FIX: was math.Remainder which computes the IEEE 754 floating-point
+		// remainder and can return negative values, making the == 0 check
+		// unreliable. math.Mod is the correct function for a non-negative modulo
+		// check on positive integers.
+		if math.Mod(float64(nonce), 100000) == 0 {
 			fmt.Printf("\r%x", hash)
 		}
 		hashInt.SetBytes(hash[:])

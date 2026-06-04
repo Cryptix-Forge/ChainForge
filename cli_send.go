@@ -26,8 +26,9 @@ func (cli *CLI) send(from, to string, amount int, nodeID string, mineNow bool) {
 	tx := NewUTXOTransaction(&wallet, to, amount, &UTXOSet)
 
 	if mineNow {
-		cbTx := NewCoinbaseTX(from, "")
-		txs := []*Transaction{cbTx, tx}
+		// Only mine the user's transaction — no coinbase reward.
+		// Coinbase rewards belong to dedicated miner nodes, not send participants.
+		txs := []*Transaction{tx}
 
 		newBlock := bc.MineBlock(txs)
 		UTXOSet.Update(newBlock)

@@ -136,6 +136,9 @@ func (u UTXOSet) Reindex() {
 
 		return nil
 	})
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 // Update updates the UTXO set with transactions from the Block
@@ -151,6 +154,16 @@ func (u UTXOSet) Update(block *Block) {
 				for _, vin := range tx.Vin {
 					updatedOuts := TXOutputs{}
 					outsBytes := b.Get(vin.Txid)
+
+					// BUG FIX: If outsBytes is nil, the spent output entry does
+					// not exist in the UTXO bucket, so there is nothing to remove.
+					// Without this guard, DeserializeOutputs(nil) is called and
+					// the deletion is silently skipped — causing the sender's
+					// balance to never decrease.
+					if outsBytes == nil {
+						continue
+					}
+
 					outs := DeserializeOutputs(outsBytes)
 
 					for outIdx, out := range outs.Outputs {
@@ -170,7 +183,6 @@ func (u UTXOSet) Update(block *Block) {
 							log.Panic(err)
 						}
 					}
-
 				}
 			}
 

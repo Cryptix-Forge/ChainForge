@@ -21,7 +21,9 @@ func (out *TXOutput) Lock(address []byte) {
 
 // IsLockedWithKey checks if the output can be used by the owner of the pubkey
 func (out *TXOutput) IsLockedWithKey(pubKeyHash []byte) bool {
-	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
+	// BUG FIX: was bytes.Compare(...) == 0 — bytes.Equal is the idiomatic and
+	// correct way to test byte-slice equality.
+	return bytes.Equal(out.PubKeyHash, pubKeyHash)
 }
 
 // NewTXOutput create a new TXOutput
