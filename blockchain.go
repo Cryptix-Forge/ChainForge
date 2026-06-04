@@ -82,7 +82,10 @@ func NewBlockchain(nodeID string) *Blockchain {
 		log.Panic(err)
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	// BUG FIX: was db.Update (read-write transaction) — only a read is needed
+	// here. Using db.View avoids an unnecessary write-lock that could cause
+	// contention when multiple goroutines open the chain concurrently.
+	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		tip = b.Get([]byte("l"))
 
@@ -140,7 +143,9 @@ func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 		block := bci.Next()
 
 		for _, tx := range block.Transactions {
-			if bytes.Compare(tx.ID, ID) == 0 {
+			// BUG FIX: was bytes.Compare(...) == 0 — bytes.Equal is the correct
+			// and idiomatic way to test byte-slice equality.
+			if bytes.Equal(tx.ID, ID) {
 				return *tx, nil
 			}
 		}
@@ -197,7 +202,7 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 	return UTXO
 }
 
-// Iterator returns a BlockchainIterat
+// Iterator returns a BlockchainIterator
 func (bc *Blockchain) Iterator() *BlockchainIterator {
 	bci := &BlockchainIterator{bc.tip, bc.db}
 

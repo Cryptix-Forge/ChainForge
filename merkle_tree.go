@@ -29,7 +29,17 @@ func NewMerkleTree(data [][]byte) *MerkleTree {
 		nodes = append(nodes, *node)
 	}
 
-	for i := 0; i < len(data)/2; i++ {
+	// BUG FIX: was `for i := 0; i < len(data)/2; i++` which used the fixed
+	// original leaf count instead of the shrinking node count. When the number
+	// of leaves is not a power of two the loop terminated too early (or too
+	// late), leaving multiple nodes at the "root" level. The correct condition
+	// is to keep merging until exactly one node — the root — remains.
+	for len(nodes) > 1 {
+		// If the current level has an odd number of nodes, duplicate the last one.
+		if len(nodes)%2 != 0 {
+			nodes = append(nodes, nodes[len(nodes)-1])
+		}
+
 		var newLevel []MerkleNode
 
 		for j := 0; j < len(nodes); j += 2 {

@@ -10,6 +10,122 @@ The project has three parts that work together:
 
 ---
 
+## How the Whole System Works — End to End
+
+This section explains the complete lifecycle of everything that happens in ChainForge, from the moment you start the app to the moment coins move between wallets. Read this first — it will make every other part of the documentation make sense.
+
+### Step 1 — Wallets are created
+
+Before anything else, you need at least one wallet. A wallet is not an account on a server somewhere. It is just a cryptographic key pair generated entirely on your machine:
+
+- A **private key** — a randomly generated 256-bit number. This never leaves your machine and is used to sign transactions (prove ownership).
+- A **public key** — mathematically derived from the private key. This can be shared freely.
+- An **address** — derived from the public key using SHA-256, then RIPEMD-160 hashing, then Base58Check encoding. The result is a ~34 character string starting with `1`, for example `1K6iLUQ6oxv4nNoLw5sZnVndkRGqLLn2hd`. This is what you share with others to receive coins.
+
+All wallets are stored in a file called `wallet_3000.dat` on disk. There is no password — whoever has this file has access to all the private keys in it.
+
+### Step 2 — The blockchain is initialized (genesis block)
+
+A blockchain is a linked list of blocks stored in a BoltDB database file (`blockchain_3000.db`). Before any transactions can happen, someone has to create the very first block — the **genesis block**.
+
+When you run `createblockchain -address YOUR_ADDRESS`, this happens:
+
+1. A special **coinbase transaction** is created. A coinbase transaction has no inputs (it does not spend any existing coins). It simply creates 10 new coins out of thin air and locks them to your address. This is the only legitimate way new coins enter the system.
+2. The genesis block is assembled — it contains this coinbase transaction, a timestamp, and no previous hash (since it is the first block).
+3. **Proof of Work mining** begins. The node starts hashing the block's data combined with a nonce (a counter starting at 0). It keeps incrementing the nonce and rehashing until it finds a hash that starts with enough leading zero bits (controlled by `targetBits = 16`). This takes real CPU effort and proves that work was done.
+4. Once a valid nonce is found, the block is written to `blockchain_3000.db`.
+5. The **UTXO set** is built — a separate BoltDB bucket called `chainstate` is populated with all unspent transaction outputs. Right now, that is just the one output from the coinbase transaction: 10 coins locked to your address.
+
+After this step, your address has a balance of 10 coins and the chain has exactly one block.
+
+### Step 3 — Balances are calculated from UTXOs
+
+ChainForge does not store balances anywhere. There is no "account balance" field in a database. Instead, it uses the **UTXO model** (Unspent Transaction Output), the same model Bitcoin uses.
+
+Think of it like this: instead of a bank account with a running total, you have a collection of unspent cheques. Each cheque is locked to your address and has a value. Your balance is the sum of all those cheques.
+
+When you run `getbalance -address YOUR_ADDRESS`, the system scans the UTXO set in `chainstate` and adds up every output that is locked to your public key hash. That sum is your balance. No scanning of the full chain is needed — the UTXO set is a fast cache maintained specifically for this.
+
+### Step 4 — A transaction is created and signed
+
+When you run `send -from SENDER -to RECIPIENT -amount 5`:
+
+1. The system looks through the UTXO set and finds outputs locked to the sender's address that add up to at least 5 coins. For example, if the sender has one UTXO worth 10 coins, that single output is selected.
+2. A new **transaction** is constructed:
+   - **Inputs** — each input references one of the selected UTXOs by its transaction ID and output index. This marks those coins as "being spent."
+   - **Outputs** — two new outputs are created:
+     - One output worth 5 coins locked to the recipient's address.
+     - One **change output** worth 5 coins locked back to the sender's address (since the full 10-coin UTXO was consumed).
+3. The sender's **private key** is used to create a digital signature for each input. The signature proves that the person creating this transaction actually owns the coins being spent, without revealing the private key itself.
+4. The transaction is complete and ready to be included in a block.
+
+### Step 5 — The transaction is mined into a block
+
+A transaction floating on its own is not confirmed yet — it needs to be packaged into a block and added to the chain. This is what mining does.
+
+If you used the `-mine` flag:
+
+1. The transaction is placed into a new block along with a coinbase transaction (the miner reward).
+2. Proof of Work begins — the node hashes the block data + nonce over and over until it finds a hash with enough leading zeros.
+3. Once found, the new block is appended to the chain in `blockchain_3000.db`.
+4. The **UTXO set is updated** — the old outputs that were spent as inputs are removed from `chainstate`, and the new outputs (recipient's coins + sender's change) are added.
+
+If you did NOT use `-mine`, the transaction is broadcast to the network. A dedicated miner node picks it up from the mempool, bundles it into a block, mines it, and broadcasts the new block back to all nodes.
+
+### Step 6 — Nodes stay in sync over the network
+
+When multiple nodes are running, they talk to each other over raw TCP connections using a simple message protocol. Each message is 12 bytes of command name followed by a gob-encoded payload.
+
+Here is how two nodes sync:
+
+1. When a new node starts up, it sends a `version` message to the seed node (`localhost:3000`), which includes its current best block height.
+2. The seed node compares heights. If the new node is behind, the seed node sends back its block hashes via an `inv` message.
+3. The new node requests the missing blocks using `getdata` messages.
+4. The seed node responds with the full block data.
+5. The new node adds each block to its own chain and updates its UTXO set.
+
+When a new transaction is broadcast, nodes forward it to all other known nodes via `inv` → `getdata` → `tx` messages until the whole network has it in the mempool.
+
+### Step 7 — Miners earn coins by mining blocks
+
+The only way new coins enter the system is through coinbase transactions in mined blocks. Every time a block is successfully mined, the miner who found the valid nonce earns 10 coins (the `subsidy` constant), credited to their address via the coinbase transaction.
+
+There are two ways to mine in ChainForge:
+
+- **Manual mining** — run `mine -address YOUR_ADDRESS` at any time. This immediately mines a new block with just a coinbase transaction and credits 10 coins to your address.
+- **Miner node** — run `startnode -miner YOUR_ADDRESS`. This keeps a node running continuously. Whenever the mempool accumulates a transaction, the node automatically mines a new block containing that transaction plus a coinbase, and your address receives the 10-coin reward.
+
+### The full picture in one flow
+
+```
+createwallet  ──►  wallet key pair saved to wallet_3000.dat
+      │
+      ▼
+createblockchain  ──►  genesis block mined  ──►  10 coins in UTXO set
+      │
+      ▼
+getbalance  ──►  scan UTXO set  ──►  sum outputs locked to address
+      │
+      ▼
+send  ──►  find UTXOs  ──►  build transaction  ──►  sign with private key
+      │
+      ▼
+mine  ──►  proof of work (hash until leading zeros)  ──►  block added to chain
+      │
+      ▼
+UTXOSet.Update  ──►  remove spent inputs  ──►  add new outputs
+      │
+      ▼
+getbalance  ──►  sender balance reduced  ──►  recipient balance increased
+      │
+      ▼
+startnode -miner  ──►  node watches mempool  ──►  auto-mines  ──►  earns coinbase reward
+```
+
+Every piece of this — the hashing, the signatures, the UTXO tracking, the TCP networking — is implemented from scratch in the Go source files. No blockchain library is used anywhere.
+
+---
+
 ## Table of Contents
 
 - [What This Project Actually Does](#what-this-project-actually-does)
@@ -336,6 +452,14 @@ Sends coins from one address to another. Add `-mine` to mine a new block immedia
 ./chainforge send -from SENDER_ADDRESS -to RECIPIENT_ADDRESS -amount 5 -mine
 ```
 
+### Mine a block manually
+
+Mines a new block with a coinbase transaction only, earning 10 coins as a reward for the given address.
+
+```bash
+./chainforge mine -address YOUR_ADDRESS
+```
+
 ### Print the entire chain
 
 Prints every block in the chain from newest to oldest, including all transactions inside each block.
@@ -354,7 +478,7 @@ Rebuilds the unspent transaction output index from scratch. Run this if balances
 
 ### Start a node
 
-Starts the TCP P2P server. Use `-miner` to enable automatic mining when the mempool has 2 or more transactions.
+Starts the TCP P2P server. Use `-miner` to enable automatic mining — the node will mine a new block and collect the coinbase reward to your address whenever a transaction arrives in the mempool.
 
 ```bash
 ./chainforge startnode
