@@ -236,7 +236,7 @@ func handleInv(request []byte, bc *Blockchain) {
 
 		newInTransit := [][]byte{}
 		for _, b := range blocksInTransit {
-			if bytes.Compare(b, blockHash) != 0 {
+			if !bytes.Equal(b, blockHash) {
 				newInTransit = append(newInTransit, b)
 			}
 		}
@@ -292,7 +292,6 @@ func handleGetData(request []byte, bc *Blockchain) {
 		tx := mempool[txID]
 
 		sendTx(payload.AddrFrom, &tx)
-		// delete(mempool, txID)
 	}
 }
 
@@ -318,7 +317,9 @@ func handleTx(request []byte, bc *Blockchain) {
 			}
 		}
 	} else {
-		if len(mempool) >= 2 && len(miningAddress) > 0 {
+		// FIX: lowered threshold from 2 to 1 so the miner node mines
+		// as soon as any transaction arrives, not after accumulating 2.
+		if len(mempool) >= 1 && len(miningAddress) > 0 {
 		MineTransactions:
 			var txs []*Transaction
 
@@ -334,6 +335,7 @@ func handleTx(request []byte, bc *Blockchain) {
 				return
 			}
 
+			// Coinbase reward goes to the dedicated miner address
 			cbTx := NewCoinbaseTX(miningAddress, "")
 			txs = append(txs, cbTx)
 
@@ -381,7 +383,6 @@ func handleVersion(request []byte, bc *Blockchain) {
 		sendVersion(payload.AddrFrom, bc)
 	}
 
-	// sendAddr(payload.AddrFrom)
 	if !nodeIsKnown(payload.AddrFrom) {
 		knownNodes = append(knownNodes, payload.AddrFrom)
 	}

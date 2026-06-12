@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/x509"
 	"encoding/gob"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +10,11 @@ import (
 )
 
 const walletFile = "wallet_%s.dat"
+
+// walletsGobFile is the gob-safe map we actually persist.
+type walletsGobFile struct {
+	Wallets map[string]WalletGob
+}
 
 // Wallets stores a collection of wallets
 type Wallets struct {
@@ -29,9 +33,7 @@ type serializedWallet struct {
 func NewWallets(nodeID string) (*Wallets, error) {
 	wallets := Wallets{}
 	wallets.Wallets = make(map[string]*Wallet)
-
 	err := wallets.LoadFromFile(nodeID)
-
 	return &wallets, err
 }
 
@@ -69,47 +71,32 @@ func (ws *Wallets) LoadFromFile(nodeID string) error {
 		log.Panic(err)
 	}
 
-	var serialized map[string]*serializedWallet
+	var gobFile walletsGobFile
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
-	err = decoder.Decode(&serialized)
+	err = decoder.Decode(&gobFile)
 	if err != nil {
 		log.Panic(err)
 	}
 
 	ws.Wallets = make(map[string]*Wallet)
-	for addr, sw := range serialized {
-		privKey, err := x509.ParseECPrivateKey(sw.PrivKeyBytes)
-		if err != nil {
-			log.Panic(err)
-		}
-		ws.Wallets[addr] = &Wallet{
-			PrivateKey: *privKey,
-			PublicKey:  sw.PublicKey,
-		}
+	for addr, wg := range gobFile.Wallets {
+		ws.Wallets[addr] = WalletFromGob(wg)
 	}
-
 	return nil
 }
 
 // SaveToFile saves wallets to a file using x509 DER encoding (Go 1.20+ safe)
 func (ws Wallets) SaveToFile(nodeID string) {
-	var content bytes.Buffer
 	walletFile := fmt.Sprintf(walletFile, nodeID)
 
-	serialized := make(map[string]*serializedWallet)
+	gobFile := walletsGobFile{Wallets: make(map[string]WalletGob)}
 	for addr, w := range ws.Wallets {
-		privBytes, err := x509.MarshalECPrivateKey(&w.PrivateKey)
-		if err != nil {
-			log.Panic(err)
-		}
-		serialized[addr] = &serializedWallet{
-			PrivKeyBytes: privBytes,
-			PublicKey:    w.PublicKey,
-		}
+		gobFile.Wallets[addr] = w.ToGob()
 	}
 
+	var content bytes.Buffer
 	encoder := gob.NewEncoder(&content)
-	err := encoder.Encode(serialized)
+	err := encoder.Encode(gobFile)
 	if err != nil {
 		log.Panic(err)
 	}

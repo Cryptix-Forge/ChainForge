@@ -1,7 +1,7 @@
 {
   "name": "chainforge-backend",
   "version": "1.0.0",
-  "description": "Express REST API for ChainForge Blockchain",
+  "description": "Express API bridge for ChainForge Go blockchain",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,14 +9,12 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "mongodb": "^7.2.0",
-    "mongoose": "^8.24.0",
-    "node-fetch": "^2.7.0",
-    "uuid": "^9.0.0"
+    "express-validator": "^7.0.1",
+    "mongoose": "^8.0.3",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.1"
   }
 }
