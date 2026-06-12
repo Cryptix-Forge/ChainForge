@@ -21,6 +21,14 @@ type Wallets struct {
 	Wallets map[string]*Wallet
 }
 
+// serializedWallet is a gob-safe, Go 1.20+ compatible wallet format.
+// We avoid encoding ecdsa.PrivateKey directly (breaks on Go 1.20+ due to
+// unexported elliptic.nistCurve fields). Instead we use x509 DER encoding.
+type serializedWallet struct {
+	PrivKeyBytes []byte // x509.MarshalECPrivateKey output
+	PublicKey    []byte // raw X||Y bytes
+}
+
 // NewWallets creates Wallets and fills it from a file if it exists
 func NewWallets(nodeID string) (*Wallets, error) {
 	wallets := Wallets{}
@@ -77,7 +85,7 @@ func (ws *Wallets) LoadFromFile(nodeID string) error {
 	return nil
 }
 
-// SaveToFile saves wallets to a file
+// SaveToFile saves wallets to a file using x509 DER encoding (Go 1.20+ safe)
 func (ws Wallets) SaveToFile(nodeID string) {
 	walletFile := fmt.Sprintf(walletFile, nodeID)
 
