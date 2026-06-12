@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"crypto/elliptic"
+	"crypto/x509"
 	"encoding/gob"
 	"fmt"
 	"io/ioutil"
@@ -15,6 +15,14 @@ const walletFile = "wallet_%s.dat"
 // Wallets stores a collection of wallets
 type Wallets struct {
 	Wallets map[string]*Wallet
+}
+
+// serializedWallet is a gob-safe, Go 1.20+ compatible wallet format.
+// We avoid encoding ecdsa.PrivateKey directly (breaks on Go 1.20+ due to
+// unexported elliptic.nistCurve fields). Instead we use x509 DER encoding.
+type serializedWallet struct {
+	PrivKeyBytes []byte // x509.MarshalECPrivateKey output
+	PublicKey    []byte // raw X||Y bytes
 }
 
 // NewWallets creates Wallets and fills it from a file if it exists
@@ -31,20 +39,16 @@ func NewWallets(nodeID string) (*Wallets, error) {
 func (ws *Wallets) CreateWallet() string {
 	wallet := NewWallet()
 	address := fmt.Sprintf("%s", wallet.GetAddress())
-
 	ws.Wallets[address] = wallet
-
 	return address
 }
 
 // GetAddresses returns an array of addresses stored in the wallet file
 func (ws *Wallets) GetAddresses() []string {
 	var addresses []string
-
 	for address := range ws.Wallets {
 		addresses = append(addresses, address)
 	}
-
 	return addresses
 }
 
@@ -65,28 +69,47 @@ func (ws *Wallets) LoadFromFile(nodeID string) error {
 		log.Panic(err)
 	}
 
-	var wallets Wallets
-	gob.Register(elliptic.P256())
+	var serialized map[string]*serializedWallet
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
-	err = decoder.Decode(&wallets)
+	err = decoder.Decode(&serialized)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	ws.Wallets = wallets.Wallets
+	ws.Wallets = make(map[string]*Wallet)
+	for addr, sw := range serialized {
+		privKey, err := x509.ParseECPrivateKey(sw.PrivKeyBytes)
+		if err != nil {
+			log.Panic(err)
+		}
+		ws.Wallets[addr] = &Wallet{
+			PrivateKey: *privKey,
+			PublicKey:  sw.PublicKey,
+		}
+	}
 
 	return nil
 }
 
-// SaveToFile saves wallets to a file
+// SaveToFile saves wallets to a file using x509 DER encoding (Go 1.20+ safe)
 func (ws Wallets) SaveToFile(nodeID string) {
 	var content bytes.Buffer
 	walletFile := fmt.Sprintf(walletFile, nodeID)
 
-	gob.Register(elliptic.P256())
+	serialized := make(map[string]*serializedWallet)
+	for addr, w := range ws.Wallets {
+		privBytes, err := x509.MarshalECPrivateKey(&w.PrivateKey)
+		if err != nil {
+			log.Panic(err)
+		}
+		serialized[addr] = &serializedWallet{
+			PrivKeyBytes: privBytes,
+			PublicKey:    w.PublicKey,
+		}
+	}
 
 	encoder := gob.NewEncoder(&content)
-	err := encoder.Encode(ws)
+	err := encoder.Encode(serialized)
 	if err != nil {
 		log.Panic(err)
 	}

@@ -1,2 +1,40 @@
+# ── Blockchain data (never commit chain or wallet files) ──
 *.db
 *.dat
+
+# ── Go ──
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# ── Node / frontend ──
+node_modules/
+dist/
+build/
+.pnpm-store/
+
+# ── Environment variables ──
+.env
+.env.local
+.env.*.local
+
+# ── Logs ──
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
