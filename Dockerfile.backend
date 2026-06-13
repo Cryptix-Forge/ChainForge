@@ -1,0 +1,43 @@
+# ── ChainForge Express Backend ─────────────────────────────────────────────────
+#
+# Directory layout inside the container:
+#   /go-root/          ← GO_ROOT (path.resolve(__dirname, '..'))
+#     backend/
+#       server.js      ← __dirname
+#       node_modules/
+#   /go-bin/           ← shared volume from go-builder
+#     chainforge        ← Linux binary copied here by go-builder
+#
+# At startup the CMD copies /go-bin/chainforge → /usr/local/bin/chainforge.exe
+# so server.js can call `chainforge.exe` from any cwd and it resolves on PATH.
+#
+# chain-data volume is mounted at /go-root so .db and .dat files written by
+# the Go binary land at GO_ROOT (= /go-root) and persist across restarts.
+# Mounting at /go-root is safe because node files live one level deeper at
+# /go-root/backend — a named volume at the parent does NOT shadow subdirs
+# that were created *inside the same image layer* on paths below it, BUT to
+# be completely safe the node files are installed under /go-root/backend
+# which is set as WORKDIR before any COPY/RUN, so Docker's layer for
+# /go-root/backend is separate from the volume mount point /go-root.
+# ──────────────────────────────────────────────────────────────────────────────
+
+FROM node:20-alpine
+
+# GO_ROOT = path.resolve('/go-root/backend', '..') = /go-root
+# chain-data volume will be mounted at /go-root in docker-compose
+WORKDIR /go-root/backend
+
+# Install dependencies
+COPY backend/package.json backend/package-lock.json* ./
+RUN npm install --omit=dev
+
+# Copy backend source
+COPY backend/server.js ./
+
+EXPOSE 5000
+
+# At startup:
+#  1. Copy the Go binary from the shared go-bin volume to /usr/local/bin
+#     named chainforge.exe so server.js execSync(`chainforge.exe ...`) works.
+#  2. Start the Node server.
+CMD ["sh", "-c", "cp /go-bin/chainforge /usr/local/bin/chainforge.exe && chmod +x /usr/local/bin/chainforge.exe && node server.js"]

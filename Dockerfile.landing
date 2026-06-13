@@ -1,0 +1,19 @@
+# ── ChainForge Next.js Landing Page ───────────────────────────────────────────
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY landing/package.json landing/pnpm-lock.yaml* ./
+
+# Install pnpm and dependencies
+RUN npm install -g pnpm && pnpm install
+
+# Copy all landing source
+COPY landing/ ./
+
+EXPOSE 3000
+
+# Next.js dev server — bind to 0.0.0.0 so it's reachable outside the container.
+# --hostname flag works for Next.js 13+; Next 16 uses the same flag.
+CMD ["pnpm", "dev", "--hostname", "0.0.0.0"]

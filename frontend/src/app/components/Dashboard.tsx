@@ -12,6 +12,7 @@ type Props = {
 export function Dashboard({ onNav }: Props) {
   const [blocks, setBlocks] = useState<ApiBlock[]>([]);
   const [wallets, setWallets] = useState<ApiWallet[]>([]);
+  const [addresses, setAddresses] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<ApiTx[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +28,9 @@ export function Dashboard({ onNav }: Props) {
           getTxHistory(),
         ]);
         setBlocks(blocksRes.blocks || []);
+        // addresses comes from the Go binary reading wallet_3000.dat directly — always accurate
+        // wallets comes from MongoDB cache — can be stale across resets, only used for metadata
+        setAddresses(walletsRes.addresses || []);
         setWallets(walletsRes.wallets || []);
         setTransactions(txRes.transactions || []);
       } catch (e: any) {
@@ -86,7 +90,7 @@ export function Dashboard({ onNav }: Props) {
         />
         <StatCard
           label="WALLETS"
-          value={wallets.length}
+          value={addresses.length}
           icon={<Wallet size={16} style={{ color: "#06b6d4" }} />}
           sub="in wallet_3000.dat"
           color="#06b6d4"
@@ -108,7 +112,7 @@ export function Dashboard({ onNav }: Props) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Chart — volume placeholder (no per-day data from backend) */}
+        {/* Chart */}
         <div className="lg:col-span-2 rounded-lg p-5" style={{ background: "#0e1520", border: "1px solid rgba(16,185,129,0.15)" }}>
           <p style={{ color: "#64748b", fontSize: "11px", fontFamily: "JetBrains Mono, monospace", marginBottom: "16px" }}>
             TRANSACTION VOLUME — LAST 7 DAYS

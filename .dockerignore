@@ -1,0 +1,40 @@
+# ── Blockchain data (never bake chain/wallet files into images) ───────────────
+*.db
+*.dat
+
+# ── Go build artifacts ────────────────────────────────────────────────────────
+*.exe
+*.exe~
+*.test
+*.out
+vendor/
+
+# ── Dockerfiles (Dockerfile.go must not be picked up by COPY *.go) ───────────
+Dockerfile.*
+
+# ── Node dependencies (reinstalled inside containers) ────────────────────────
+node_modules/
+*/node_modules/
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+
+# ── Environment files (injected via docker-compose environment: block) ────────
+.env
+.env.local
+.env.*.local
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.log
