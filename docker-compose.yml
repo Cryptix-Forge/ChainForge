@@ -1,0 +1,92 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ChainForge — Full Stack
+#
+#   docker compose up --build
+#
+# Services:
+#   go-builder  — compiles the Go binary into a shared volume (init pattern)
+#   backend     — Express API on :5000, calls chainforge.exe binary via execSync
+#   frontend    — Vite/React app on :5173
+#   landing     — Next.js landing page on :3001
+#
+# Ports exposed to your host:
+#   http://localhost:3001  →  Landing page (Next.js)
+#   http://localhost:5173  →  Frontend app (Vite/React)
+#   http://localhost:5000  →  Backend API (Express)
+#
+# Volume layout:
+#   go-bin      → Go binary shared between go-builder and backend
+#                 mounted at /go-bin in both containers
+#   chain-data  → Persistent BoltDB chain + wallet .dat files
+#                 mounted at /go-root in the backend (= GO_ROOT from server.js)
+#                 GO_ROOT = path.resolve('/go-root/backend', '..') = /go-root
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Compile Go binary into shared volume ───────────────────────────────────
+  go-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.go
+    volumes:
+      - go-bin:/go-bin
+    # Copy the compiled binary into the shared volume and exit
+    entrypoint: ["sh", "-c", "cp /app/chainforge /go-bin/chainforge && chmod +x /go-bin/chainforge && echo '✅ Go binary ready'"]
+
+  # ── Express REST API ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: 5000
+      NODE_ID: 3000
+      MONGO_URI: ${MONGO_URI:-}
+    volumes:
+      # Shared Go binary — mounted at /go-bin so the CMD can copy
+      # it to /usr/local/bin/chainforge.exe for server.js to call
+      - go-bin:/go-bin
+      # Persist blockchain .db and wallet .dat files at GO_ROOT.
+      # GO_ROOT = path.resolve('/go-root/backend', '..') = /go-root
+      # Mounted at /go-root (parent of /go-root/backend) — safe because
+      # node_modules and server.js live one level deeper at /go-root/backend
+      # which is a separate image layer not shadowed by this mount.
+      - chain-data:/go-root
+    depends_on:
+      go-builder:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ── Vite/React Frontend ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Next.js Landing Page ────────────────────────────────────────────────────
+  landing:
+    build:
+      context: .
+      dockerfile: Dockerfile.landing
+    ports:
+      # Map host 3001 → container 3000 to avoid clash with Go's NODE_ID=3000 port
+      - "3001:3000"
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+# ── Named Volumes ───────────────────────────────────────────────────────────
+volumes:
+  go-bin:      # Shared Go binary between go-builder and backend
+  chain-data:  # Persistent BoltDB chain + wallet files (mounted at /go-root)

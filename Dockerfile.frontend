@@ -1,0 +1,20 @@
+# ── ChainForge React/Vite Frontend ────────────────────────────────────────────
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package.json frontend/pnpm-lock.yaml* ./
+
+# Install pnpm and dependencies
+RUN npm install -g pnpm && pnpm install
+
+# Copy all frontend source (includes vite.config.docker.ts)
+COPY frontend/ ./
+
+EXPOSE 5173
+
+# Use the Docker-specific Vite config so the proxy target is 'http://backend:5000'
+# instead of 'http://localhost:5000' (which would hit the container itself).
+# --host binds to 0.0.0.0 so the port is reachable outside the container.
+CMD ["pnpm", "dev", "--config", "vite.config.docker.ts", "--host", "0.0.0.0"]
