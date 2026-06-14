@@ -1,0 +1,35 @@
+# ── Stage 1: Build Go binary ──────────────────────────────────────────────────
+FROM golang:1.23-alpine AS go-builder
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /build
+
+COPY blockchain/go.mod blockchain/go.sum ./
+
+ENV GOTOOLCHAIN=auto
+ENV GONOSUMCHECK=*
+
+RUN go mod download
+
+COPY blockchain/*.go ./
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o chainforge .
+
+# ── Stage 2: Node.js backend + Go binary ──────────────────────────────────────
+FROM node:20-alpine
+
+WORKDIR /app/backend
+
+COPY backend/package.json backend/package-lock.json* ./
+RUN npm install --omit=dev
+
+COPY backend/ ./
+
+# goRunner.js checks /usr/local/bin/chainforge.exe first — place it there
+COPY --from=go-builder /build/chainforge /usr/local/bin/chainforge.exe
+RUN chmod +x /usr/local/bin/chainforge.exe
+
+EXPOSE 5000
+
+CMD ["node", "server.js"]

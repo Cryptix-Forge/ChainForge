@@ -15,7 +15,13 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({ origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"] }));
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : []),
+];
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.use((req, _res, next) => {
