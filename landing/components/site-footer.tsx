@@ -12,20 +12,27 @@ export function SiteFooter() {
             </span>
           </div>
           <nav className="flex flex-wrap gap-x-8 gap-y-3" aria-label="Footer">
-            {["Architecture", "Technology", "Whitepaper", "GitHub"].map((l) => (
+            {[
+              { label: "Portfolio", href: "https://shauryasharma.vercel.app/" },
+              { label: "LinkedIn", href: "https://www.linkedin.com/in/shaurya-sharmaa/" },
+              { label: "GitHub", href: "https://github.com/ShauryaaSharma" },
+              { label: "Instagram", href: "https://www.instagram.com/shauryacodesharma/" },
+            ].map(({ label, href }) => (
               <a
-                key={l}
-                href="#top"
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
               >
-                {l}
+                {label}
               </a>
             ))}
           </nav>
         </div>
         <div className="mt-10 flex flex-col gap-2 border-t border-border pt-6 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground md:flex-row md:items-center md:justify-between">
           <p>&copy; {new Date().getFullYear()} ChainForge. Forged in Go.</p>
-          <p>SHA-256 · P-256 · UTXO · TCP/P2P</p>
+          <p>SHAURYA SHARMA</p>
         </div>
       </div>
     </footer>

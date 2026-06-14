@@ -21,7 +21,7 @@ export function StatementBand() {
               vault open — in pure Go, line by line.&rdquo;
             </blockquote>
             <p className="mt-8 font-mono text-xs uppercase tracking-[0.18em] text-background/60">
-              ChainForge · Protocol Foundation
+              ChainForge · Forged in Go · Shaurya Sharma
             </p>
           </Reveal>
         </div>
