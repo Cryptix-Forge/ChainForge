@@ -6,6 +6,7 @@ const connectDB = require("./db");
 const blockchainRoutes  = require("./routes/blockchain");
 const walletRoutes      = require("./routes/wallet");
 const transactionRoutes = require("./routes/transaction");
+const systemRoutes      = require("./routes/system");
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -14,7 +15,7 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({ origin: "http://localhost:3000" }));
+app.use(cors({ origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"] }));
 app.use(express.json());
 
 app.use((req, _res, next) => {
@@ -27,10 +28,9 @@ app.use("/api/blockchain",  blockchainRoutes);
 app.use("/api/wallet",      walletRoutes);
 app.use("/api/transaction", transactionRoutes);
 
-// Health check
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
+// System routes: /api/health, /api/mine/block, /api/utxo/reindex,
+// /api/node/status, /api/reset
+app.use("/api", systemRoutes);
 
 // ── Error handlers ────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: "Route not found" }));

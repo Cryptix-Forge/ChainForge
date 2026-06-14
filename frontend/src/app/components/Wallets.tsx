@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Check, Copy, Wallet as WalletIcon, Code, Trash2 } from "lucide-react";
-import { listWallets, createWallet, getBalance, deleteWallet, resetEverything, type ApiWallet } from "../api";
+import { listWallets, createWallet, getBalance, deleteWallet, resetEverything, updateWalletLabel, type ApiWallet } from "../api";
 
 const walletCode = `// wallet.go
 func NewWallet() *Wallet {
@@ -113,9 +113,15 @@ export function Wallets() {
     setTimeout(() => setCopied(null), 2000);
   }
 
-  function saveLabel(addr: string) {
-    setWallets(wallets.map((w) => (w.address === addr ? { ...w, label: editLabel } : w)));
+  async function saveLabel(addr: string) {
+    const newLabel = editLabel;
+    setWallets(wallets.map((w) => (w.address === addr ? { ...w, label: newLabel } : w)));
     setEditingAddr(null);
+    try {
+      await updateWalletLabel(addr, newLabel);
+    } catch (_) {
+      // label saved in local state regardless; MongoDB update is best-effort
+    }
   }
 
   async function handleDelete(addr: string) {

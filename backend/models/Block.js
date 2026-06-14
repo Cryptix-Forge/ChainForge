@@ -24,6 +24,7 @@ const BlockSchema = new mongoose.Schema({
   height:       { type: Number, required: true },
   prevHash:     { type: String, default: "" },
   powValid:     { type: Boolean, default: true },
+  nonce:        { type: Number, default: 0 },
   transactions: [TransactionSchema],
   txCount:      { type: Number, default: 0 },
   timestamp:    { type: Date, default: Date.now },
