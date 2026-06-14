@@ -63,7 +63,7 @@ export function Hero() {
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a
-              href="https://github.com/ShauryaDusht/ChainForge-Blockchain-in-Go"
+              href="https://github.com/ShauryaaSharma/ChainForge-Blockchain-in-Go"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 w-full border border-foreground bg-foreground px-7 py-3.5 text-xs font-semibold uppercase tracking-[0.14em] text-background transition-colors hover:bg-transparent hover:text-foreground sm:w-auto"
