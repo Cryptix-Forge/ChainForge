@@ -15,6 +15,7 @@ func (cli *CLI) printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  createblockchain -address ADDRESS - Create a blockchain and send genesis block reward to ADDRESS")
 	fmt.Println("  createwallet - Generates a new key-pair and saves it into the wallet file")
+	fmt.Println("  deletewallet -address ADDRESS - Permanently removes ADDRESS from the wallet file")
 	fmt.Println("  getbalance -address ADDRESS - Get balance of ADDRESS")
 	fmt.Println("  listaddresses - Lists all addresses from the wallet file")
 	fmt.Println("  mine -address ADDRESS - Mine a new block and send the 10 coin reward to ADDRESS")
@@ -44,6 +45,7 @@ func (cli *CLI) Run() {
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
+	deleteWalletCmd := flag.NewFlagSet("deletewallet", flag.ExitOnError)
 	listAddressesCmd := flag.NewFlagSet("listaddresses", flag.ExitOnError)
 	mineCmd := flag.NewFlagSet("mine", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
@@ -53,6 +55,7 @@ func (cli *CLI) Run() {
 
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
+	deleteWalletAddress := deleteWalletCmd.String("address", "", "The wallet address to delete")
 	mineAddress := mineCmd.String("address", "", "The address to receive the mining reward")
 	sendFrom := sendCmd.String("from", "", "Source wallet address")
 	sendTo := sendCmd.String("to", "", "Destination wallet address")
@@ -73,6 +76,11 @@ func (cli *CLI) Run() {
 		}
 	case "createwallet":
 		err := createWalletCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "deletewallet":
+		err := deleteWalletCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -129,6 +137,14 @@ func (cli *CLI) Run() {
 
 	if createWalletCmd.Parsed() {
 		cli.createWallet(nodeID)
+	}
+
+	if deleteWalletCmd.Parsed() {
+		if *deleteWalletAddress == "" {
+			deleteWalletCmd.Usage()
+			os.Exit(1)
+		}
+		cli.deleteWallet(*deleteWalletAddress, nodeID)
 	}
 
 	if listAddressesCmd.Parsed() {

@@ -280,21 +280,25 @@ export function BlockExplorer({ onCreateWallet }: { onCreateWallet: () => void }
       </div>
 
       {!chainExists && (
-        <div className="rounded-lg p-5" style={{ background: "#0e1520", border: "1px solid rgba(245,158,11,0.3)" }}>
-          <p style={{ color: "#f59e0b", fontSize: "12px", marginBottom: "12px", fontFamily: "JetBrains Mono, monospace" }}>
-            ⚠ No blockchain found. Initialize with a genesis block.
+        <div className="rounded-lg p-5 space-y-3" style={{ background: "#0e1520", border: "1px solid rgba(245,158,11,0.3)" }}>
+          <p style={{ color: "#f59e0b", fontSize: "12px", fontFamily: "JetBrains Mono, monospace", fontWeight: 600 }}>
+            ⚠ No blockchain found
+          </p>
+          <p style={{ color: "#94a3b8", fontSize: "12px", fontFamily: "JetBrains Mono, monospace", lineHeight: "1.6" }}>
+            Create a wallet first (Wallets tab), then paste its address below.
+            This mines the genesis block and sends 10 coins to that address.
           </p>
           <div className="flex gap-3">
             <input
               className="flex-1 rounded px-3 py-2 text-sm outline-none focus:ring-1"
               style={{ background: "#131d2e", border: "1px solid rgba(16,185,129,0.2)", color: "#e2e8f0", fontFamily: "JetBrains Mono, monospace", fontSize: "12px" }}
-              placeholder="Genesis reward address (1K6iLUQ6...)"
+              placeholder="Your wallet address (e.g. 1K6iLUQ6…)"
               value={genesisAddr}
               onChange={(e) => setGenesisAddr(e.target.value)}
             />
             <button
               onClick={handleCreate}
-              disabled={creatingChain}
+              disabled={creatingChain || !genesisAddr.trim()}
               className="px-4 py-2 rounded text-sm font-medium transition-colors hover:opacity-90 disabled:opacity-50"
               style={{ background: "#10b981", color: "#080b0f", fontFamily: "JetBrains Mono, monospace" }}
             >

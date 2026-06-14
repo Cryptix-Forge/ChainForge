@@ -34,7 +34,7 @@ router.post(
       if (stdout.toLowerCase().includes("success")) {
         log.status = "success"; log.raw = stdout;
         await log.save();
-        res.json({ success: true, message: stdout, txid });
+        res.json({ success: true, message: stdout, rawOutput: stdout, txid, backendTrace: [{ file: "cli_send.go", fn: "send" }] });
       } else {
         log.status = "failed"; log.raw = stderr || stdout;
         await log.save();
@@ -54,12 +54,23 @@ router.get("/history", async (req, res) => {
     const { address, page = 1, limit = 20 } = req.query;
     const filter = address ? { $or: [{ from: address }, { to: address }] } : {};
     const total  = await TxLog.countDocuments(filter);
-    const txs    = await TxLog.find(filter)
+    const docs   = await TxLog.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .lean();
-    res.json({ transactions: txs, total, page: Number(page), pages: Math.ceil(total / limit) });
+
+    // Map to ApiTx shape expected by the frontend (camelCase txId)
+    const transactions = docs.map((t) => ({
+      txId: t.txid,
+      from: t.from,
+      to: t.to,
+      amount: t.amount,
+      timestamp: t.createdAt,
+      nodeId: process.env.NODE_ID || "3000",
+    }));
+
+    res.json({ success: true, transactions, total, page: Number(page), pages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

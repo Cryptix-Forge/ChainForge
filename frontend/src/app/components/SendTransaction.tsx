@@ -405,8 +405,8 @@ export function SendTransaction({ onTxSent }: { onTxSent: (tx: any) => void }) {
                 }}
               >
                 {mine
-                  ? "Block mined now — sender earns +10 coinbase reward"
-                  : "Goes to mempool, no block mined"}
+                  ? "Transaction mined immediately (required for single-node setup)"
+                  : "Broadcasts to P2P network — needs other nodes running"}
               </p>
             </div>
             <button

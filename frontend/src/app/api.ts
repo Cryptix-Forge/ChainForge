@@ -138,7 +138,17 @@ export function mineBlock(minerAddress: string) {
 // ── UTXO ───────────────────────────────────────────────────────────────────
 
 export function reindexUTXO() {
-  return request<{ success: boolean; transactionCount: number | null; rawOutput: string }>('/utxo/reindex');
+  return request<{ success: boolean; transactionCount: number | null; rawOutput: string }>(
+    '/utxo/reindex',
+    { method: 'POST' }
+  );
+}
+
+export function updateWalletLabel(address: string, label: string) {
+  return request<{ success: boolean; wallet: ApiWallet }>(
+    `/wallet/${address}/label`,
+    { method: 'PATCH', body: JSON.stringify({ label }) }
+  );
 }
 
 // ── Node ───────────────────────────────────────────────────────────────────

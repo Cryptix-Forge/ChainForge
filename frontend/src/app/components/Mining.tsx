@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Cpu, Zap, CheckCircle, Code, AlertCircle } from "lucide-react";
-import { listWallets, mineBlock, getBalance, type ApiWallet } from "../api";
+import { listWallets, mineBlock, getBalance, getBlockchainExists, type ApiWallet } from "../api";
 
 const TARGET_PREFIX = "0000";
 
@@ -43,6 +43,7 @@ export function Mining({ onBlockMined }: { onBlockMined: (addr: string) => void 
   const [wallets, setWallets] = useState<ApiWallet[]>([]);
   const [loadingWallets, setLoadingWallets] = useState(true);
   const [minerAddr, setMinerAddr] = useState("");
+  const [chainExists, setChainExists] = useState<boolean | null>(null);
 
   // PoW simulation state
   const [mining, setMining] = useState(false);
@@ -69,15 +70,19 @@ export function Mining({ onBlockMined }: { onBlockMined: (addr: string) => void 
   const startTimeRef = useRef<number>(0);
   const logRef = useRef<HTMLDivElement | null>(null);
 
-  // Load live wallets
+  // Load live wallets and check blockchain existence on mount
   useEffect(() => {
     async function load() {
       setLoadingWallets(true);
       try {
-        const res = await listWallets();
-        const addresses = res.addresses || [];
+        const [walletsRes, existsRes] = await Promise.all([
+          listWallets(),
+          getBlockchainExists(),
+        ]);
+        setChainExists(existsRes.exists);
+        const addresses = walletsRes.addresses || [];
         const mapped: ApiWallet[] = addresses.map((addr, idx) => {
-          const db = (res.wallets || []).find((w) => w.address === addr);
+          const db = (walletsRes.wallets || []).find((w) => w.address === addr);
           return {
             address: addr,
             label: db?.label || `Wallet ${idx + 1}`,
@@ -125,6 +130,7 @@ export function Mining({ onBlockMined }: { onBlockMined: (addr: string) => void 
   // ── Phase 1: visual PoW simulation ────────────────────────────────────────
   function startMining() {
     if (!minerAddr) return;
+    if (chainExists === false) return; // blocked by the UI banner below
     setMining(true);
     setFoundNonce(null);
     setCurrentHash("");
@@ -281,6 +287,25 @@ export function Mining({ onBlockMined }: { onBlockMined: (addr: string) => void 
         <StatCard label="CURRENT NONCE"  value={mining ? nonce.toLocaleString() : foundNonce?.toLocaleString() ?? "—"} icon={<Zap size={14} style={{ color: "#f59e0b" }} />} />
       </div>
 
+      {/* No-blockchain warning */}
+      {chainExists === false && (
+        <div className="rounded-lg p-4" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.4)" }}>
+          <div className="flex items-start gap-3">
+            <AlertCircle size={16} style={{ color: "#f59e0b", marginTop: "1px", flexShrink: 0 }} />
+            <div>
+              <p style={{ color: "#f59e0b", fontFamily: "JetBrains Mono, monospace", fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
+                No blockchain found
+              </p>
+              <p style={{ color: "#94a3b8", fontFamily: "JetBrains Mono, monospace", fontSize: "12px", lineHeight: "1.6" }}>
+                Mining requires an existing blockchain. Go to{" "}
+                <strong style={{ color: "#10b981" }}>Block Explorer → Create Blockchain</strong>{" "}
+                first — enter any wallet address to receive the genesis coinbase reward (10 coins), then come back here to mine.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Miner config */}
       <div className="rounded-lg p-4 space-y-4" style={{ background: "#0e1520", border: "1px solid rgba(16,185,129,0.15)" }}>
         <p style={{ color: "#64748b", fontSize: "11px", fontFamily: "JetBrains Mono, monospace" }}>MINER CONFIGURATION</p>
@@ -317,20 +342,21 @@ export function Mining({ onBlockMined }: { onBlockMined: (addr: string) => void 
           )}
         </div>
 
-        {/* Note about first-time mining */}
+        {/* Note about mining */}
         <div className="rounded p-3 text-xs" style={{ background: "#131d2e", color: "#64748b", fontFamily: "JetBrains Mono, monospace", lineHeight: "1.7" }}>
           <span style={{ color: "#f59e0b" }}>ℹ</span>{" "}
-          Mining runs real PoW on the Go blockchain. The miner wallet needs at least 1 coin
-          to self-send (the vehicle for a coinbase block). If this is a fresh chain with 0 coins,
-          use <span style={{ color: "#10b981" }}>Block Explorer → Create Blockchain</span> first
-          to mint the genesis coinbase reward, then come back here.
+          Mining creates a coinbase-only block — no pre-existing coins required.
+          The 10-coin reward is sent directly to the selected wallet.
+          If no blockchain exists yet, go to{" "}
+          <span style={{ color: "#10b981" }}>Block Explorer → Create Blockchain</span>{" "}
+          first to initialize the genesis block.
         </div>
 
         <div className="flex gap-3">
           {!mining && !submitting ? (
             <button
               onClick={foundNonce ? reset : startMining}
-              disabled={!minerAddr}
+              disabled={!minerAddr || chainExists === false}
               className="flex items-center gap-2 px-5 py-2.5 rounded font-medium transition-colors hover:opacity-90 disabled:opacity-40"
               style={{ background: "#10b981", color: "#080b0f", fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}
             >
