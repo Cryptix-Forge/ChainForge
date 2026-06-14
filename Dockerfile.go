@@ -5,7 +5,7 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
+COPY blockchain/go.mod blockchain/go.sum ./
 
 # go.mod declares go 1.26.3 but we're building with 1.23.
 # GOTOOLCHAIN=auto + GONOSUMCHECK lets 1.23 proceed without rejecting the file.
@@ -15,7 +15,7 @@ ENV GONOSUMCHECK=*
 
 RUN go mod download
 
-COPY *.go ./
+COPY blockchain/*.go ./
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o chainforge .
 

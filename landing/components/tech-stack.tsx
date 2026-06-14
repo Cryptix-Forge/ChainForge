@@ -30,8 +30,8 @@ export function TechStack() {
             Engineered to the metal
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-pretty leading-relaxed text-muted-foreground">
-            Three foundational systems, each written by hand in Go. Open the source and
-            trace every line from genesis block to signed transaction.
+            Three foundational systems, each written by hand in Go. The product shows the backend code so that
+                    you can understand and trace every line from genesis block to signed transaction.
           </p>
         </Reveal>
 

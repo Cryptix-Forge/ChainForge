@@ -4,7 +4,7 @@ import { ShieldCheck, Network, Lock, Gauge, GitBranch, Coins } from "lucide-reac
 const features = [
   {
     icon: ShieldCheck,
-    title: "Immutable by design",
+    title: "Trust through transparency, not promises",
     copy: "Every block is chained by SHA-256 hashes. Tamper with one record and the entire chain rejects it — security guaranteed by computation, not policy.",
   },
   {
