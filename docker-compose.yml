@@ -20,8 +20,12 @@ version: "3.9"
 #   go-bin      → Go binary shared between go-builder and backend
 #                 mounted at /go-bin in both containers
 #   chain-data  → Persistent BoltDB chain + wallet .dat files
-#                 mounted at /go-root in the backend (= GO_ROOT from server.js)
-#                 GO_ROOT = path.resolve('/go-root/backend', '..') = /go-root
+#                 mounted at /go-root in the backend (= GO_ROOT env var, set in
+#                 Dockerfile.backend). Backend code lives at /app/backend —
+#                 deliberately NOT under /go-root, since mounting a non-empty
+#                 named volume replaces everything at that path rather than
+#                 merging with the image, which would otherwise hide backend
+#                 code changes behind whatever was first put in the volume.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -51,24 +55,23 @@ services:
       # Shared Go binary — mounted at /go-bin so the CMD can copy
       # it to /usr/local/bin/chainforge.exe for server.js to call
       - go-bin:/go-bin
-      # Persist blockchain .db and wallet .dat files at GO_ROOT.
-      # GO_ROOT = path.resolve('/go-root/backend', '..') = /go-root
-      # Mounted at /go-root (parent of /go-root/backend) — safe because
-      # node_modules and server.js live one level deeper at /go-root/backend
-      # which is a separate image layer not shadowed by this mount.
+      # Persist blockchain .db and wallet .dat files at GO_ROOT (env var,
+      # see Dockerfile.backend). Backend code lives at /app/backend instead,
+      # specifically so this mount never overlaps with — and therefore never
+      # shadows — the application code.
       - chain-data:/go-root
     depends_on:
       go-builder:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # ── Vite/React Frontend ─────────────────────────────────────────────────────
+  # ── React Frontend (production build, served by nginx) ────────────────────────
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       - backend
     restart: unless-stopped

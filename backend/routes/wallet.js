@@ -52,6 +52,8 @@ router.get("/balance/:address", async (req, res) => {
   if (!address) return res.status(400).json({ error: "address required" });
   try {
     const { stdout } = await run(["getbalance", "-address", address]);
+    const cliError = stdout.match(/^CLI_ERROR:(.+)$/m);
+    if (cliError) return res.status(400).json({ error: cliError[1].trim() });
     const match   = stdout.match(/Balance of '.*?':\s*(\d+)/);
     const balance = match ? parseInt(match[1]) : 0;
     res.json({ success: true, address, balance, raw: stdout, backendTrace: [{ file: "cli_getbalance.go", fn: "getBalance" }] });

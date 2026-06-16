@@ -1,31 +1,28 @@
 # ── ChainForge Express Backend ─────────────────────────────────────────────────
 #
 # Directory layout inside the container:
-#   /go-root/          ← GO_ROOT (path.resolve(__dirname, '..'))
-#     backend/
-#       server.js      ← __dirname
-#       node_modules/
+#   /app/backend/      ← backend code (server.js, node_modules, etc.) — __dirname
+#   /go-root/          ← GO_ROOT env var — where the Go binary reads/writes
+#                         blockchain_<NODE_ID>.db / wallet_<NODE_ID>.dat.
+#                         chain-data volume is mounted here in docker-compose.
 #   /go-bin/           ← shared volume from go-builder
 #     chainforge        ← Linux binary copied here by go-builder
 #
+# IMPORTANT: backend code must NOT live inside /go-root (or any path under the
+# chain-data mount point). Mounting a named volume REPLACES everything the
+# image had at that path — it does not merge with it. Once the volume has data
+# in it (after its first use), any code baked into a later image build at that
+# same path is silently hidden behind the volume's older snapshot. That's why
+# GO_ROOT is resolved from an explicit env var (see goRunner.js) instead of
+# being derived from __dirname like it used to be.
+#
 # At startup the CMD copies /go-bin/chainforge → /usr/local/bin/chainforge.exe
 # so server.js can call `chainforge.exe` from any cwd and it resolves on PATH.
-#
-# chain-data volume is mounted at /go-root so .db and .dat files written by
-# the Go binary land at GO_ROOT (= /go-root) and persist across restarts.
-# Mounting at /go-root is safe because node files live one level deeper at
-# /go-root/backend — a named volume at the parent does NOT shadow subdirs
-# that were created *inside the same image layer* on paths below it, BUT to
-# be completely safe the node files are installed under /go-root/backend
-# which is set as WORKDIR before any COPY/RUN, so Docker's layer for
-# /go-root/backend is separate from the volume mount point /go-root.
 # ──────────────────────────────────────────────────────────────────────────────
 
 FROM node:20-alpine
 
-# GO_ROOT = path.resolve('/go-root/backend', '..') = /go-root
-# chain-data volume will be mounted at /go-root in docker-compose
-WORKDIR /go-root/backend
+WORKDIR /app/backend
 
 # Install dependencies
 COPY backend/package.json backend/package-lock.json* ./
@@ -33,6 +30,8 @@ RUN npm install --omit=dev
 
 # Copy backend source (server.js, db.js, goRunner.js, models/, routes/, etc.)
 COPY backend/ ./
+
+ENV GO_ROOT=/go-root
 
 EXPOSE 5000
 

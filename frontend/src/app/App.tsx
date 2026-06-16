@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   LayoutDashboard,
   Wallet,
@@ -10,6 +10,13 @@ import {
   Terminal,
   Menu,
   X,
+  Clock,
+  ShieldCheck,
+  GitBranch,
+  Radio,
+  CheckCircle,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import { Dashboard } from "./components/Dashboard";
 import { BlockExplorer } from "./components/BlockExplorer";
@@ -17,8 +24,16 @@ import { Wallets } from "./components/Wallets";
 import { Mining } from "./components/Mining";
 import { SendTransaction } from "./components/SendTransaction";
 import { TxHistory } from "./components/TxHistory";
+// @ts-ignore
+import Mempool from "../pages/Mempool";
+// @ts-ignore
+import Validator from "../pages/Validator";
+// @ts-ignore
+import ForkResolution from "../pages/ForkResolution";
+// @ts-ignore
+import Network from "../pages/Network";
 
-type Page = "dashboard" | "explorer" | "wallets" | "send" | "mining" | "history";
+type Page = "dashboard" | "explorer" | "wallets" | "send" | "mining" | "history" | "mempool" | "validator" | "fork" | "network";
 
 // Locally-added transactions (from SendTransaction this session)
 // These are merged inside TxHistory with live API data
@@ -34,18 +49,31 @@ type LocalTx = {
 };
 
 const NAV = [
-  { id: "dashboard" as Page, label: "Dashboard",    icon: LayoutDashboard, cmd: "—" },
-  { id: "explorer"  as Page, label: "Block Explorer", icon: Search,        cmd: "printchain" },
-  { id: "wallets"   as Page, label: "Wallets",       icon: Wallet,         cmd: "createwallet" },
-  { id: "send"      as Page, label: "Send",          icon: Send,           cmd: "send" },
-  { id: "mining"    as Page, label: "Mining",        icon: Cpu,            cmd: "mine" },
-  { id: "history"   as Page, label: "Tx History",    icon: History,        cmd: "—" },
+  { id: "dashboard" as Page, label: "Dashboard",      icon: LayoutDashboard, cmd: "—" },
+  { id: "explorer"  as Page, label: "Block Explorer", icon: Search,          cmd: "printchain" },
+  { id: "wallets"   as Page, label: "Wallets",        icon: Wallet,          cmd: "createwallet" },
+  { id: "send"      as Page, label: "Send",           icon: Send,            cmd: "send" },
+  { id: "mining"    as Page, label: "Mining",         icon: Cpu,             cmd: "mine" },
+  { id: "history"   as Page, label: "Tx History",     icon: History,         cmd: "—" },
+  { id: "mempool"   as Page, label: "Mempool",        icon: Clock,           cmd: "mempool" },
+  { id: "validator" as Page, label: "Block Validator",icon: ShieldCheck,     cmd: "validateblock" },
+  { id: "fork"      as Page, label: "Fork Resolution",icon: GitBranch,       cmd: "—" },
+  { id: "network"   as Page, label: "P2P Network",    icon: Radio,           cmd: "startnode" },
 ];
+
+type Toast = { id: number; msg: string; type: "success" | "error" | "info" };
 
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [localTxs, setLocalTxs] = useState<LocalTx[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const pushToast = useCallback((msg: string, type: Toast["type"] = "info") => {
+    const id = Date.now();
+    setToasts((t) => [...t, { id, msg, type }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+  }, []);
 
   function addTransaction(tx: LocalTx) {
     setLocalTxs((prev) => [...prev, tx]);
@@ -54,6 +82,7 @@ export default function App() {
   const activePage = NAV.find((n) => n.id === page)!;
 
   return (
+    <>
     <div
       className="size-full flex"
       style={{ background: "#080b0f", fontFamily: "Inter, sans-serif", color: "#e2e8f0" }}
@@ -281,11 +310,36 @@ export default function App() {
           {page === "dashboard"  && <Dashboard transactions={localTxs} onNav={(p) => setPage(p as Page)} />}
           {page === "explorer"   && <BlockExplorer onCreateWallet={() => setPage("wallets")} />}
           {page === "wallets"    && <Wallets />}
-          {page === "send"       && <SendTransaction onTxSent={addTransaction} />}
+          {page === "send"       && <SendTransaction onTxSent={addTransaction} toast={pushToast} />}
           {page === "mining"     && <Mining onBlockMined={() => {}} />}
           {page === "history"    && <TxHistory transactions={localTxs} />}
+          {page === "mempool"    && <Mempool toast={pushToast} />}
+          {page === "validator"  && <Validator toast={pushToast} />}
+          {page === "fork"       && <ForkResolution toast={pushToast} />}
+          {page === "network"    && <Network toast={pushToast} />}
         </main>
       </div>
     </div>
+
+    {/* Toast notifications */}
+    <div style={{ position: "fixed", bottom: "1.5rem", right: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem", zIndex: 9999 }}>
+      {toasts.map(({ id, msg, type }) => (
+        <div key={id} style={{
+          display: "flex", alignItems: "flex-start", gap: "0.5rem",
+          padding: "0.65rem 0.9rem", borderRadius: "6px",
+          background: "#0e1520", border: "1px solid rgba(16,185,129,0.2)",
+          color: "#e2e8f0", fontSize: "0.8rem", maxWidth: 320,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+          animation: "fadeIn 0.2s ease",
+        }}>
+          {type === "success" && <CheckCircle size={14} color="#10b981" style={{ flexShrink: 0, marginTop: 2 }} />}
+          {type === "error"   && <AlertCircle size={14} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />}
+          {type === "info"    && <Info        size={14} color="#64748b" style={{ flexShrink: 0, marginTop: 2 }} />}
+          <span style={{ lineHeight: 1.45 }}>{msg}</span>
+        </div>
+      ))}
+    </div>
+    <style>{`@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }`}</style>
+    </>
   );
 }

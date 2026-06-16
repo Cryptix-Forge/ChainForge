@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
+	"strings"
+	"time"
 )
 
 const protocol = "tcp"
@@ -17,7 +21,11 @@ const commandLength = 12
 
 var nodeAddress string
 var miningAddress string
-var knownNodes = []string{"localhost:3000"}
+// No hardcoded default seed — "localhost:3000" is the Express HTTP API in
+// this app, not a P2P node, so a default seed here would always (and only)
+// produce a guaranteed-to-fail handshake attempt on every fresh start. Peers
+// are populated solely from the saved peers file, P2P_BOOTSTRAP, or "Add Peer".
+var knownNodes = []string{}
 var blocksInTransit = [][]byte{}
 var mempool = make(map[string]Transaction)
 
@@ -310,7 +318,7 @@ func handleTx(request []byte, bc *Blockchain) {
 	tx := DeserializeTransaction(txData)
 	mempool[hex.EncodeToString(tx.ID)] = tx
 
-	if nodeAddress == knownNodes[0] {
+	if len(knownNodes) > 0 && nodeAddress == knownNodes[0] {
 		for _, node := range knownNodes {
 			if node != nodeAddress && node != payload.AddFrom {
 				sendInv(node, "tx", [][]byte{tx.ID})
@@ -418,11 +426,58 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	conn.Close()
 }
 
+type p2pStatus struct {
+	NodeAddress string   `json:"nodeAddress"`
+	Peers       []string `json:"peers"`
+	MempoolSize int      `json:"mempoolSize"`
+	LastUpdated string   `json:"lastUpdated"`
+}
+
+func writeP2PStatus(nodeID string) {
+	peers := make([]string, len(knownNodes))
+	copy(peers, knownNodes)
+	status := p2pStatus{
+		NodeAddress: nodeAddress,
+		Peers:       peers,
+		MempoolSize: len(mempool),
+		LastUpdated: time.Now().UTC().Format(time.RFC3339),
+	}
+	data, err := json.Marshal(status)
+	if err != nil {
+		return
+	}
+	os.WriteFile(fmt.Sprintf("p2p_status_%s.json", nodeID), data, 0644)
+}
+
 // StartServer starts a node
 func StartServer(nodeID, minerAddress string) {
-	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
+	// P2P_ADVERTISE sets the address advertised to peers (what others dial back).
+	// Defaults to localhost for single-machine setups; set to your LAN/external IP
+	// so peers on other machines can connect.
+	advertiseHost := os.Getenv("P2P_ADVERTISE")
+	if advertiseHost == "" {
+		advertiseHost = "localhost"
+	}
+	nodeAddress = fmt.Sprintf("%s:%s", advertiseHost, nodeID)
 	miningAddress = minerAddress
-	ln, err := net.Listen(protocol, nodeAddress)
+
+	// Load peers persisted via `addpeer` command
+	for _, p := range loadPeers(nodeID) {
+		if !nodeIsKnown(p) {
+			knownNodes = append(knownNodes, p)
+		}
+	}
+	// Seed extra bootstrap peers from env var (comma-separated host:port list)
+	if bs := os.Getenv("P2P_BOOTSTRAP"); bs != "" {
+		for _, p := range strings.Split(bs, ",") {
+			if p = strings.TrimSpace(p); p != "" && !nodeIsKnown(p) {
+				knownNodes = append(knownNodes, p)
+			}
+		}
+	}
+
+	// Listen on all interfaces so peers on other machines can reach us
+	ln, err := net.Listen(protocol, fmt.Sprintf("0.0.0.0:%s", nodeID))
 	if err != nil {
 		log.Panic(err)
 	}
@@ -430,7 +485,15 @@ func StartServer(nodeID, minerAddress string) {
 
 	bc := NewBlockchain(nodeID)
 
-	if nodeAddress != knownNodes[0] {
+	// Write status JSON every 2s so the backend can poll it without connecting
+	go func() {
+		for {
+			writeP2PStatus(nodeID)
+			time.Sleep(2 * time.Second)
+		}
+	}()
+
+	if len(knownNodes) > 0 && nodeAddress != knownNodes[0] {
 		sendVersion(knownNodes[0], bc)
 	}
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Send, ArrowRight, CheckCircle, AlertCircle, Code } from "lucide-react";
-import { listWallets, getBalance, sendTransaction, type ApiWallet } from "../api";
+import { listWallets, getBalance, sendTransaction, submitToMempool, type ApiWallet } from "../api";
 import { shortAddress } from "./mockData";
 
 type Status = "idle" | "signing" | "broadcasting" | "mining" | "done" | "error";
@@ -38,7 +38,7 @@ func NewUTXOTransaction(from, to string,
 
 type WalletWithBalance = ApiWallet & { balance: number };
 
-export function SendTransaction({ onTxSent }: { onTxSent: (tx: any) => void }) {
+export function SendTransaction({ onTxSent, toast }: { onTxSent: (tx: any) => void; toast?: (msg: string, type?: string) => void }) {
   const [wallets, setWallets] = useState<WalletWithBalance[]>([]);
   const [loadingWallets, setLoadingWallets] = useState(true);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -134,8 +134,11 @@ export function SendTransaction({ onTxSent }: { onTxSent: (tx: any) => void }) {
       }
 
       if (res.success) {
-        // Extract tx id from rawOutput if available
-        const txIdMatch = res.rawOutput?.match(/([a-f0-9]{64})/);
+        // Extract the real txid from the Go binary's "TXID:..." line. Fall
+        // back to scanning for any 64-char hex string for older binaries
+        // that don't print it yet (note: that fallback may match a PoW
+        // attempt hash rather than the actual transaction id).
+        const txIdMatch = res.rawOutput?.match(/^TXID:([a-f0-9]+)$/m) || res.rawOutput?.match(/([a-f0-9]{64})/);
         const txId = txIdMatch ? txIdMatch[1] : "see-raw-output";
         setStatus("done");
         setResult({ txId, rawOutput: res.rawOutput });
@@ -171,6 +174,21 @@ export function SendTransaction({ onTxSent }: { onTxSent: (tx: any) => void }) {
     setResult(null);
     setSteps([]);
     setAmount("");
+  }
+
+  async function handleAddToMempool() {
+    if (!toAddress || !amount || amountNum <= 0) return;
+    if (fromWallet && amountNum > fromWallet.balance) {
+      toast?.(`Insufficient funds — you have ${fromWallet.balance} coins`, "error");
+      return;
+    }
+    try {
+      await submitToMempool(from, toAddress, amountNum);
+      toast?.(`Transaction queued in mempool (${amountNum} coins)`, "success");
+      reset();
+    } catch (e: any) {
+      toast?.(e.message || "Failed to add to mempool", "error");
+    }
   }
 
   return (
@@ -423,19 +441,34 @@ export function SendTransaction({ onTxSent }: { onTxSent: (tx: any) => void }) {
           </div>
 
           {status === "idle" && (
-            <button
-              onClick={handleSend}
-              disabled={!toAddress || !amount || amountNum <= 0 || wallets.length === 0 || (fromWallet != null && amountNum > fromWallet.balance)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded font-medium transition-colors hover:opacity-90 disabled:opacity-40"
-              style={{
-                background: "#10b981",
-                color: "#080b0f",
-                fontFamily: "JetBrains Mono, monospace",
-              }}
-            >
-              <Send size={14} />
-              Send {amount || 0} coins
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <button
+                onClick={handleSend}
+                disabled={!toAddress || !amount || amountNum <= 0 || wallets.length === 0 || (fromWallet != null && amountNum > fromWallet.balance)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded font-medium transition-colors hover:opacity-90 disabled:opacity-40"
+                style={{
+                  background: "#10b981",
+                  color: "#080b0f",
+                  fontFamily: "JetBrains Mono, monospace",
+                }}
+              >
+                <Send size={14} />
+                Send {amount || 0} coins
+              </button>
+              <button
+                onClick={handleAddToMempool}
+                disabled={!toAddress || !amount || amountNum <= 0 || wallets.length === 0 || (fromWallet != null && amountNum > fromWallet.balance)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded font-medium transition-colors hover:opacity-80 disabled:opacity-40"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(245,158,11,0.4)",
+                  color: "#f59e0b",
+                  fontFamily: "JetBrains Mono, monospace",
+                }}
+              >
+                + Add to Mempool
+              </button>
+            </div>
           )}
 
           {status === "done" && (

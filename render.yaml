@@ -1,0 +1,59 @@
+# ── Render Blueprint ─────────────────────────────────────────────────────────
+#
+# Deploys ChainForge as two services:
+#   chainforge-backend   — Docker web service (Dockerfile.render), with a
+#                           persistent disk so blockchain_<NODE_ID>.db and
+#                           wallet_<NODE_ID>.dat survive restarts/redeploys.
+#   chainforge-frontend  — static site (vite build output), with a rewrite
+#                           rule so /api/* transparently reaches the backend
+#                           service — the browser never makes a cross-origin
+#                           request, so no CORS configuration is needed for
+#                           normal use of the app.
+#
+# IMPORTANT — things I could not verify from here (no Render account access):
+#   - Exact current Render Blueprint schema (field names occasionally change
+#     between Render API versions). Validate this in the Render dashboard's
+#     "New Blueprint" flow before relying on it — it will flag schema errors.
+#   - That the disk size/plan below match what's actually available on your
+#     account tier.
+#   - MONGO_URI must be set manually in the Render dashboard (sync: false
+#     means Render will prompt for it rather than reading it from this file,
+#     so the real Atlas credentials never need to be committed anywhere).
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: chainforge-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: NODE_ID
+        value: "3000"
+      - key: GO_ROOT
+        value: /var/data
+      - key: MONGO_URI
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://chainforge-frontend.onrender.com
+    disk:
+      name: chain-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
+    name: chainforge-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      # Forward API calls to the backend service — keeps the browser on a
+      # single origin, so no CORS handling is required for the app to work.
+      - type: rewrite
+        source: /api/*
+        destination: https://chainforge-backend.onrender.com/api/*
+      # SPA fallback so client-side routing doesn't 404 on refresh/deep links
+      - type: rewrite
+        source: /*
+        destination: /index.html

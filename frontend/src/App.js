@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Layers, Wallet, ArrowRightLeft, Activity,
-  ChevronRight, AlertCircle, CheckCircle, Info, HelpCircle
+  ChevronRight, AlertCircle, CheckCircle, Info, HelpCircle, Clock, ShieldCheck, GitBranch, Radio
 } from "lucide-react";
 import { health } from "./api";
 
@@ -10,6 +10,10 @@ import Explorer     from "./pages/Explorer";
 import Wallets      from "./pages/Wallets";
 import Transactions from "./pages/Transactions";
 import Send         from "./pages/Send";
+import Mempool      from "./pages/Mempool";
+import Validator      from "./pages/Validator";
+import ForkResolution from "./pages/ForkResolution";
+import Network        from "./pages/Network";
 
 import "./index.css";
 
@@ -33,6 +37,10 @@ const NAV = [
   { id: "wallets",      label: "Wallets",         icon: Wallet },
   { id: "transactions", label: "Tx History",      icon: ArrowRightLeft },
   { id: "send",         label: "Send",            icon: ChevronRight },
+  { id: "mempool",      label: "Mempool",         icon: Clock },
+  { id: "validator",    label: "Block Validator",  icon: ShieldCheck },
+  { id: "fork",         label: "Fork Resolution",  icon: GitBranch },
+  { id: "network",      label: "P2P Network",       icon: Radio },
 ];
 
 /* ── ChainLink SVG Logo ─────────────────────────────────────────── */
@@ -144,6 +152,10 @@ export default function App() {
     wallets:      <Wallets      toast={push} />,
     transactions: <Transactions toast={push} />,
     send:         <Send         toast={push} />,
+    mempool:      <Mempool        toast={push} />,
+    validator:    <Validator      toast={push} />,
+    fork:         <ForkResolution toast={push} />,
+    network:      <Network        toast={push} />,
   };
 
   return (

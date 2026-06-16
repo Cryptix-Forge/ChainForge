@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Send as SendIcon, AlertCircle, CheckCircle } from "lucide-react";
-import { sendTx, listWallets } from "../api";
+import { Send as SendIcon, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { sendTx, listWallets, submitToMempool } from "../api";
 
 /* ── Toggle ─────────────────────────────────────────────────────── */
 function Toggle({ checked, onChange }) {
@@ -73,6 +73,28 @@ export default function Send({ toast }) {
       });
       setResult({ success: true, message: data.message, txid: data.txid });
       toast("Transaction submitted!", "success");
+      setTo("");
+      setAmount("");
+    } catch (e) {
+      const msg = e.response?.data?.error || e.message;
+      setResult({ success: false, message: msg });
+      toast(msg, "error");
+    }
+    setLoading(false);
+  };
+
+  const handleAddToMempool = async () => {
+    if (!isValid) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data } = await submitToMempool({
+        from: from.trim(),
+        to: to.trim(),
+        amount: Number(amount),
+      });
+      setResult({ success: true, message: data.message, txid: data.tx?.txid, mempool: true });
+      toast("Added to mempool — mine it from the Mempool page", "success");
       setTo("");
       setAmount("");
     } catch (e) {
@@ -157,22 +179,26 @@ export default function Send({ toast }) {
                 </div>
               </div>
 
-              {/* SUBMIT */}
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: 4, justifyContent: "center", padding: "12px" }}
-                onClick={handleSend}
-                disabled={loading || !isValid}
-              >
-                {loading ? (
-                  "Sending…"
-                ) : (
-                  <>
-                    <SendIcon size={14} />
-                    Send Transaction
-                  </>
-                )}
-              </button>
+              {/* SUBMIT BUTTONS */}
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 1, justifyContent: "center", padding: "12px" }}
+                  onClick={handleSend}
+                  disabled={loading || !isValid}
+                >
+                  {loading ? "Sending…" : <><SendIcon size={14} /> Send</>}
+                </button>
+                <button
+                  className="btn"
+                  style={{ flex: 1, justifyContent: "center", padding: "12px", border: "1px solid var(--brass-border)", color: "var(--brass)", background: "var(--brass-light)" }}
+                  onClick={handleAddToMempool}
+                  disabled={loading || !isValid}
+                  title="Add to mempool — mine later from the Mempool page"
+                >
+                  <Clock size={14} /> Add to Mempool
+                </button>
+              </div>
             </div>
           </div>
         </div>

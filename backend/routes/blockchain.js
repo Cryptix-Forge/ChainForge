@@ -8,8 +8,9 @@ const Block = require("../models/Block");
 const router = express.Router();
 
 // GO_ROOT — where the Go binary reads/writes blockchain_<NODE_ID>.db and
-// wallet_<NODE_ID>.dat (cwd used by goRunner.run, mounted at /go-root in Docker)
-const GO_ROOT = path.resolve(__dirname, "..", "..");
+// wallet_<NODE_ID>.dat (cwd used by goRunner.run, mounted at /go-root in Docker —
+// must match goRunner.js's own GO_ROOT resolution, including the env override)
+const GO_ROOT = process.env.GO_ROOT || path.resolve(__dirname, "..", "..");
 const DB_FILE = path.join(GO_ROOT, `blockchain_${NODE_ID}.db`);
 
 function validate(req, res) {
@@ -70,6 +71,9 @@ router.post(
     const { address } = req.body;
     try {
       const { stdout } = await run(["createblockchain", "-address", address]);
+
+      const cliError = stdout.match(/^CLI_ERROR:(.+)$/m);
+      if (cliError) return res.status(400).json({ error: cliError[1].trim() });
 
       // Sync the newly-created chain (genesis block) into MongoDB right away
       try {

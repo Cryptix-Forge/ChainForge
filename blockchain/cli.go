@@ -23,6 +23,9 @@ func (cli *CLI) printUsage() {
 	fmt.Println("  reindexutxo - Rebuilds the UTXO set")
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT -mine - Send AMOUNT of coins from FROM address to TO. Mine on the same node, when -mine is set.")
 	fmt.Println("  startnode -miner ADDRESS - Start a node with ID specified in NODE_ID env. var. -miner enables mining and sends reward to ADDRESS")
+	fmt.Println("  validateblock -hash HASH - Validate PoW, Merkle root, and transaction signatures for the block with the given hash")
+	fmt.Println("  listpeers - List all saved peer addresses for this node")
+	fmt.Println("  addpeer -address ADDRESS - Save a peer address (host:port) for this node")
 }
 
 func (cli *CLI) validateArgs() {
@@ -52,6 +55,9 @@ func (cli *CLI) Run() {
 	reindexUTXOCmd := flag.NewFlagSet("reindexutxo", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	startNodeCmd := flag.NewFlagSet("startnode", flag.ExitOnError)
+	validateBlockCmd := flag.NewFlagSet("validateblock", flag.ExitOnError)
+	listPeersCmd := flag.NewFlagSet("listpeers", flag.ExitOnError)
+	addPeerCmd := flag.NewFlagSet("addpeer", flag.ExitOnError)
 
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
@@ -62,6 +68,8 @@ func (cli *CLI) Run() {
 	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
 	sendMine := sendCmd.Bool("mine", false, "Mine immediately on the same node")
 	startNodeMiner := startNodeCmd.String("miner", "", "Enable mining mode and send reward to ADDRESS")
+	validateBlockHash := validateBlockCmd.String("hash", "", "Hex hash of the block to validate")
+	addPeerAddress := addPeerCmd.String("address", "", "Peer address to add (host:port)")
 
 	switch os.Args[1] {
 	case "getbalance":
@@ -111,6 +119,21 @@ func (cli *CLI) Run() {
 		}
 	case "startnode":
 		err := startNodeCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "validateblock":
+		err := validateBlockCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "listpeers":
+		err := listPeersCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "addpeer":
+		err := addPeerCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -182,5 +205,25 @@ func (cli *CLI) Run() {
 			os.Exit(1)
 		}
 		cli.startNode(nodeID, *startNodeMiner)
+	}
+
+	if validateBlockCmd.Parsed() {
+		if *validateBlockHash == "" {
+			validateBlockCmd.Usage()
+			os.Exit(1)
+		}
+		cli.validateBlock(*validateBlockHash, nodeID)
+	}
+
+	if listPeersCmd.Parsed() {
+		cli.listPeers(nodeID)
+	}
+
+	if addPeerCmd.Parsed() {
+		if *addPeerAddress == "" {
+			addPeerCmd.Usage()
+			os.Exit(1)
+		}
+		cli.addPeer(*addPeerAddress, nodeID)
 	}
 }

@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
 )
 
 func (cli *CLI) createBlockchain(address, nodeID string) {
 	if !ValidateAddress(address) {
-		log.Panic("ERROR: Address is not valid")
+		fmt.Println("CLI_ERROR:Address is not valid")
+		return
 	}
 	bc := CreateBlockchain(address, nodeID)
 	defer bc.db.Close()
