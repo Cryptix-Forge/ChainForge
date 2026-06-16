@@ -1,21 +1,28 @@
-# ── Render Blueprint ─────────────────────────────────────────────────────────
+# ── Render Blueprint (free tier — no persistent disk) ─────────────────────────
 #
-# Deploys ChainForge as two services:
-#   chainforge-backend   — Docker web service (Dockerfile.render), with a
-#                           persistent disk so blockchain_<NODE_ID>.db and
-#                           wallet_<NODE_ID>.dat survive restarts/redeploys.
+# Deploys ChainForge as two services, both free:
+#   chainforge-backend   — Docker web service (Dockerfile.render).
 #   chainforge-frontend  — static site (vite build output), with a rewrite
 #                           rule so /api/* transparently reaches the backend
 #                           service — the browser never makes a cross-origin
 #                           request, so no CORS configuration is needed for
 #                           normal use of the app.
 #
+# NO PERSISTENT DISK: Render's free tier doesn't support attaching one (disks
+# require a paid plan, e.g. Starter at $7/mo + ~$0.25/GB/mo). Without it,
+# blockchain_<NODE_ID>.db and wallet_<NODE_ID>.dat live in the container's
+# ephemeral filesystem — they reset on every redeploy, and free services also
+# spin down after ~15 min of inactivity and start fresh on the next request.
+# Fine for a demo/portfolio deployment; not fine if you need the chain to
+# accumulate real history over time. To upgrade later: bump `plan` to
+# `starter` on the backend service, add a `disk:` block (mountPath e.g.
+# /var/data), and set a GO_ROOT env var to that same path — goRunner.js,
+# routes/blockchain.js, and routes/system.js all already check for it.
+#
 # IMPORTANT — things I could not verify from here (no Render account access):
 #   - Exact current Render Blueprint schema (field names occasionally change
 #     between Render API versions). Validate this in the Render dashboard's
 #     "New Blueprint" flow before relying on it — it will flag schema errors.
-#   - That the disk size/plan below match what's actually available on your
-#     account tier.
 #   - MONGO_URI must be set manually in the Render dashboard (sync: false
 #     means Render will prompt for it rather than reading it from this file,
 #     so the real Atlas credentials never need to be committed anywhere).
@@ -31,16 +38,10 @@ services:
     envVars:
       - key: NODE_ID
         value: "3000"
-      - key: GO_ROOT
-        value: /var/data
       - key: MONGO_URI
         sync: false
       - key: ALLOWED_ORIGINS
         value: https://chainforge-frontend.onrender.com
-    disk:
-      name: chain-data
-      mountPath: /var/data
-      sizeGB: 1
 
   - type: web
     name: chainforge-frontend
