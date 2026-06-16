@@ -1,12 +1,10 @@
 # ── Render Blueprint (free tier — no persistent disk) ─────────────────────────
 #
-# Deploys ChainForge as two services, both free:
-#   chainforge-backend   — Docker web service (Dockerfile.render).
-#   chainforge-frontend  — static site (vite build output), with a rewrite
-#                           rule so /api/* transparently reaches the backend
-#                           service — the browser never makes a cross-origin
-#                           request, so no CORS configuration is needed for
-#                           normal use of the app.
+# Defines the BACKEND only. The frontend is actually deployed on Vercel
+# (https://chain-forge-blockchain-by-shaurya.vercel.app), not Render — see
+# frontend/vercel.json for its equivalent /api/* rewrite + SPA fallback rules.
+# The commented-out service below is kept as a reference for anyone who'd
+# rather host the frontend on Render instead; it's not part of the live setup.
 #
 # NO PERSISTENT DISK: Render's free tier doesn't support attaching one (disks
 # require a paid plan, e.g. Starter at $7/mo + ~$0.25/GB/mo). Without it,
@@ -41,20 +39,20 @@ services:
       - key: MONGO_URI
         sync: false
       - key: ALLOWED_ORIGINS
-        value: https://chainforge-frontend.onrender.com
+        value: https://chain-forge-blockchain-by-shaurya.vercel.app
 
-  - type: web
-    name: chainforge-frontend
-    runtime: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
-    routes:
-      # Forward API calls to the backend service — keeps the browser on a
-      # single origin, so no CORS handling is required for the app to work.
-      - type: rewrite
-        source: /api/*
-        destination: https://chainforge-backend.onrender.com/api/*
-      # SPA fallback so client-side routing doesn't 404 on refresh/deep links
-      - type: rewrite
-        source: /*
-        destination: /index.html
+# ── Not in use — frontend is hosted on Vercel instead (see top comment) ──────
+# Reference only, for anyone who'd rather use a Render static site:
+#
+#  - type: web
+#    name: chainforge-frontend
+#    runtime: static
+#    buildCommand: cd frontend && npm install && npm run build
+#    staticPublishPath: frontend/dist
+#    routes:
+#      - type: rewrite
+#        source: /api/*
+#        destination: https://chainforge-backend.onrender.com/api/*
+#      - type: rewrite
+#        source: /*
+#        destination: /index.html
