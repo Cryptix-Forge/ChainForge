@@ -3,15 +3,18 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose");
 const { run, NODE_ID } = require("../goRunner");
-const Block  = require("../models/Block");
-const Wallet = require("../models/Wallet");
-const TxLog  = require("../models/TxLog");
+const Block     = require("../models/Block");
+const Wallet    = require("../models/Wallet");
+const TxLog     = require("../models/TxLog");
+const Fork      = require("../models/Fork");
+const MempoolTx = require("../models/MempoolTx");
 
 const router = express.Router();
 
 // GO_ROOT — where the Go binary reads/writes blockchain_<NODE_ID>.db and
-// wallet_<NODE_ID>.dat (cwd used by goRunner.run, mounted at /go-root in Docker)
-const GO_ROOT   = path.resolve(__dirname, "..", "..");
+// wallet_<NODE_ID>.dat (cwd used by goRunner.run, mounted at /go-root in Docker —
+// must match goRunner.js's own GO_ROOT resolution, including the env override)
+const GO_ROOT   = process.env.GO_ROOT || path.resolve(__dirname, "..", "..");
 const DB_FILE   = path.join(GO_ROOT, `blockchain_${NODE_ID}.db`);
 const WALLET_FILE = path.join(GO_ROOT, `wallet_${NODE_ID}.dat`);
 
@@ -38,6 +41,18 @@ router.post("/mine/block", async (req, res) => {
 
   try {
     const { stdout, stderr } = await run(["mine", "-address", minerAddress]);
+
+    const cliError = stdout.match(/^CLI_ERROR:(.+)$/m);
+    if (cliError) {
+      return res.json({
+        success: false,
+        minerAddress,
+        newBalance: null,
+        rawOutput: stdout,
+        backendTrace: [{ file: "cli_mine.go", fn: "mineBlock" }],
+        error: cliError[1].trim(),
+      });
+    }
 
     if (stdout.toLowerCase().includes("success")) {
       // Sync the new block into MongoDB
@@ -145,6 +160,8 @@ router.post("/reset", async (_req, res) => {
       Block.deleteMany({}),
       Wallet.deleteMany({}),
       TxLog.deleteMany({}),
+      Fork.deleteMany({}),
+      MempoolTx.deleteMany({}),
     ]);
 
     res.json({

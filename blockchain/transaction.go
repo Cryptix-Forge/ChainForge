@@ -11,6 +11,7 @@ import (
 
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 )
@@ -192,8 +193,11 @@ func NewCoinbaseTX(to, data string) *Transaction {
 	return &tx
 }
 
-// NewUTXOTransaction creates a new transaction
-func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+// NewUTXOTransaction creates a new transaction. Insufficient funds is a
+// normal, expected outcome (a user can always try to send more than they
+// have), so it's reported as an error return rather than a panic — letting
+// the CLI layer print a clean message instead of leaking a stack trace.
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) (*Transaction, error) {
 	var inputs []TXInput
 	var outputs []TXOutput
 
@@ -201,7 +205,7 @@ func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet)
 	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
 
 	if acc < amount {
-		log.Panic("ERROR: Not enough funds")
+		return nil, errors.New("not enough funds")
 	}
 
 	// Build a list of inputs
@@ -228,7 +232,7 @@ func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet)
 	tx.ID = tx.Hash()
 	UTXOSet.Blockchain.SignTransaction(&tx, wallet.PrivateKey)
 
-	return &tx
+	return &tx, nil
 }
 
 // DeserializeTransaction deserializes a transaction

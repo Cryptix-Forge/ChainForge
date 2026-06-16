@@ -13,7 +13,11 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 
-const ROOT = path.join(__dirname, ".."); // project root where the Go binary lives (local/non-Docker use)
+// Where the Go binary's cwd should be (so blockchain_<NODE_ID>.db / wallet_<NODE_ID>.dat
+// land here). Locally this is the project root. In Docker, backend code and the
+// data volume must NOT share a path (see Dockerfile.backend), so GO_ROOT is set
+// explicitly there instead of being derived from __dirname.
+const ROOT = process.env.GO_ROOT || path.join(__dirname, "..");
 
 // Docker places the binary on PATH as /usr/local/bin/chainforge.exe (see Dockerfile.backend CMD)
 const DOCKER_BINARY = "/usr/local/bin/chainforge.exe";
@@ -49,4 +53,4 @@ function run(args) {
   });
 }
 
-module.exports = { run, NODE_ID };
+module.exports = { run, NODE_ID, BINARY, ROOT };

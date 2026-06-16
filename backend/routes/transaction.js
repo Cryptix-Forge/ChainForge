@@ -26,15 +26,24 @@ router.post(
 
     const txid = crypto.randomBytes(16).toString("hex");
 
-    // Log as pending
+    // Log as pending (txid is a placeholder until the Go binary reports the
+    // real on-chain transaction id below — fork resolution needs that real
+    // id to match this log entry back to its block)
     const log = await TxLog.create({ txid, from, to, amount, mined: !!mine, status: "pending" });
 
     try {
       const { stdout, stderr } = await run(args);
-      if (stdout.toLowerCase().includes("success")) {
+      const cliError = stdout.match(/^CLI_ERROR:(.+)$/m);
+      if (cliError) {
+        log.status = "failed"; log.raw = stdout;
+        await log.save();
+        res.status(400).json({ success: false, error: cliError[1].trim() });
+      } else if (stdout.toLowerCase().includes("success")) {
+        const idMatch = stdout.match(/^TXID:([a-f0-9]+)$/m);
+        if (idMatch) log.txid = idMatch[1];
         log.status = "success"; log.raw = stdout;
         await log.save();
-        res.json({ success: true, message: stdout, rawOutput: stdout, txid, backendTrace: [{ file: "cli_send.go", fn: "send" }] });
+        res.json({ success: true, message: stdout, rawOutput: stdout, txid: log.txid, backendTrace: [{ file: "cli_send.go", fn: "send" }] });
       } else {
         log.status = "failed"; log.raw = stderr || stdout;
         await log.save();

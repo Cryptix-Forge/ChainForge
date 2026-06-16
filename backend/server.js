@@ -6,6 +6,10 @@ const connectDB = require("./db");
 const blockchainRoutes  = require("./routes/blockchain");
 const walletRoutes      = require("./routes/wallet");
 const transactionRoutes = require("./routes/transaction");
+const mempoolRoutes     = require("./routes/mempool");
+const validateRoutes    = require("./routes/validate");
+const forkRoutes        = require("./routes/fork");
+const p2pRoutes         = require("./routes/p2p");
 const systemRoutes      = require("./routes/system");
 
 const app  = express();
@@ -33,6 +37,10 @@ app.use((req, _res, next) => {
 app.use("/api/blockchain",  blockchainRoutes);
 app.use("/api/wallet",      walletRoutes);
 app.use("/api/transaction", transactionRoutes);
+app.use("/api/mempool",     mempoolRoutes);
+app.use("/api/validate",    validateRoutes);
+app.use("/api/fork",        forkRoutes);
+app.use("/api/p2p",         p2pRoutes);
 
 // System routes: /api/health, /api/mine/block, /api/utxo/reindex,
 // /api/node/status, /api/reset

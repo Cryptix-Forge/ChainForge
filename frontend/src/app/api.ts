@@ -156,3 +156,12 @@ export function updateWalletLabel(address: string, label: string) {
 export function getNodeStatus() {
   return request<{ success: boolean; nodeId: string; address: string; mempoolSize: number; status: string }>('/node/status');
 }
+
+// ── Mempool ────────────────────────────────────────────────────────────────
+
+export function submitToMempool(from: string, to: string, amount: number) {
+  return request<{ success: boolean; message: string; tx: any }>(
+    '/mempool/submit',
+    { method: 'POST', body: JSON.stringify({ from, to, amount }) }
+  );
+}
