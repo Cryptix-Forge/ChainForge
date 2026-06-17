@@ -3,6 +3,15 @@
 A full-stack, from-scratch blockchain implementation based on the Bitcoin protocol.
 Written in Go for the core chain, with a Node.js REST API and a React dashboard.
 
+**Live demo:**
+- Frontend → https://chain-forge-blockchain-by-shaurya.vercel.app
+- Backend API → https://chainforge-blockchain-in-go.onrender.com/api/health
+
+> **Note on the free-tier deployment:** The backend runs on Render's free plan, which
+> spins down after 15 minutes of inactivity. On cold start the first request takes
+> 30–60 seconds. Blockchain and wallet files are ephemeral — they reset on each restart.
+> MongoDB data (transaction logs, wallet addresses, cached blocks) persists across restarts.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        ChainForge Stack                         │
@@ -10,17 +19,17 @@ Written in Go for the core chain, with a Node.js REST API and a React dashboard.
 │   ┌──────────────┐    ┌──────────────┐    ┌─────────────────┐  │
 │   │  React/Vite  │    │  Next.js     │    │                 │  │
 │   │  Dashboard   │    │  Landing     │    │   Go Binary     │  │
-│   │  :5173       │    │  :3001       │    │  chainforge.exe │  │
+│   │  (Vercel)    │    │  Page        │    │  chainforge.exe │  │
 │   └──────┬───────┘    └──────────────┘    └────────┬────────┘  │
 │          │ /api proxy                              │            │
 │   ┌──────▼───────────────────────────────┐        │            │
 │   │       Express REST API  :5000         │◄───────┘            │
-│   │       (Node.js + MongoDB)             │  execFile()         │
+│   │       (Node.js + MongoDB)  (Render)   │  execFile()         │
 │   └──────────────────────────────────────┘                     │
 │          │                  │                                   │
 │   ┌──────▼──────┐   ┌──────▼──────┐                           │
 │   │   MongoDB   │   │   BoltDB    │                           │
-│   │  (API cache)│   │ (chain data)│                           │
+│   │  (Atlas)    │   │ (chain data)│                           │
 │   └─────────────┘   └─────────────┘                           │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -497,6 +506,11 @@ one Go binary call at a time, results parsed from stdout.
        }
 ```
 
+> **Ephemeral on Render free tier:** `blockchain_3000.db` and `wallet_3000.dat` live on
+> the container's filesystem and are wiped on every restart. Use a paid persistent disk
+> or keep the service alive with an external ping (e.g. UptimeRobot on `/api/health`
+> every 5 minutes) to avoid the 15-minute spin-down.
+
 ### MongoDB (API cache, written by Node.js backend)
 
 ```
@@ -511,9 +525,15 @@ one Go binary call at a time, results parsed from stdout.
    │   { address (unique), label, createdAt }
    │   — only stores metadata; actual key material stays in wallet_3000.dat
    │
-   └── collection: txlogs
-       { txid, from, to, amount, mined, status, raw, createdAt }
-       indexes: from, to
+   ├── collection: txlogs
+   │   { txid, from, to, amount, mined, status, raw, createdAt }
+   │   indexes: from, to
+   │
+   ├── collection: forks
+   │   { blockHash, height, reason, resolvedAt }
+   │
+   └── collection: mempooltxs
+       { txid, from, to, amount, status, createdAt }
 ```
 
 **Important:** BoltDB is the source of truth. MongoDB is a cache and fallback.
@@ -523,7 +543,7 @@ If they diverge, reset MongoDB and let it re-sync from the Go binary.
 
 ## API Reference
 
-All endpoints prefixed with `/api`. Frontend proxies `/api` → `http://localhost:5000`.
+All endpoints prefixed with `/api`. Frontend proxies `/api` → backend URL.
 
 ### Blockchain
 
@@ -552,6 +572,34 @@ All endpoints prefixed with `/api`. Frontend proxies `/api` → `http://localhos
 | POST   | `/transaction/send`       | `{ from, to, amount, mine }`    | Send coins                |
 | GET    | `/transaction/history`    | `?address=&page=&limit=`        | Transaction log           |
 
+### Mempool
+
+| Method | Path                | Body / Params          | Description                          |
+|--------|---------------------|------------------------|--------------------------------------|
+| GET    | `/mempool`          | —                      | All pending mempool transactions     |
+| POST   | `/mempool/submit`   | `{ from, to, amount }` | Add transaction to mempool           |
+| POST   | `/mempool/mine`     | `{ minerAddress }`     | Mine all mempool transactions        |
+| DELETE | `/mempool/:id`      | —                      | Reject and remove a mempool tx       |
+
+### Fork Resolution
+
+| Method | Path            | Description                                  |
+|--------|-----------------|----------------------------------------------|
+| GET    | `/fork`         | Get current fork state                       |
+| POST   | `/fork/simulate`| Simulate a chain fork                        |
+| POST   | `/fork/resolve` | Resolve fork (longest-chain rule)            |
+| DELETE | `/fork`         | Clear fork state                             |
+
+### P2P Network
+
+| Method | Path           | Body / Params       | Description                        |
+|--------|----------------|---------------------|------------------------------------|
+| GET    | `/p2p/status`  | —                   | Node online/offline status         |
+| POST   | `/p2p/start`   | `{ port, peers[] }` | Start P2P TCP node                 |
+| POST   | `/p2p/stop`    | —                   | Stop P2P node                      |
+| GET    | `/p2p/peers`   | —                   | List connected peers               |
+| POST   | `/p2p/peers`   | `{ address }`       | Add a peer                         |
+
 ### System
 
 | Method | Path               | Body / Params          | Description                          |
@@ -569,14 +617,13 @@ All endpoints prefixed with `/api`. Frontend proxies `/api` → `http://localhos
 ### With Docker (recommended)
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/ShauryaaSharma/ChainForge-Blockchain-in-Go.git
 cd ChainForge-Blockchain-in-Go
 
-# Set your MongoDB connection string (leave blank to use a local Mongo instance)
-# Create a .env file:
+# Set your MongoDB connection string
 echo "MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/chainforge" > .env
 
-# Build and start all four services
+# Build and start all services
 docker compose up --build
 
 # Open the dashboard
@@ -588,7 +635,7 @@ Docker service map:
    go-builder  →  compiles Go binary into shared volume /go-bin
    backend     →  copies binary from /go-bin, starts on :5000
    frontend    →  Vite dev server on :5173, /api proxied to backend
-   landing     →  Next.js on :3001
+   landing     →  Next.js landing page on :3001
 ```
 
 To rebuild after Go code changes:
@@ -767,7 +814,7 @@ $env:NODE_ID = "3000"         # Windows PowerShell
 ```
 ChainForge-Blockchain-in-Go/
 │
-├── Go Blockchain Core
+├── Go Blockchain Core  (blockchain/)
 │   ├── main.go                    Entry point — creates CLI and calls Run()
 │   ├── cli.go                     Command dispatcher (flag.FlagSet per command)
 │   ├── cli_createblockchain.go    createblockchain command
@@ -780,6 +827,9 @@ ChainForge-Blockchain-in-Go/
 │   ├── cli_reindexutxo.go         reindexutxo command
 │   ├── cli_send.go                send command (UTXO transaction)
 │   ├── cli_startnode.go           startnode command (P2P)
+│   ├── cli_addpeer.go             addpeer command
+│   ├── cli_listpeers.go           listpeers command
+│   ├── cli_validateblock.go       validateblock command
 │   │
 │   ├── block.go                   Block struct, NewBlock, Serialize
 │   ├── blockchain.go              Blockchain DB ops (BoltDB), MineBlock
@@ -796,41 +846,53 @@ ChainForge-Blockchain-in-Go/
 │   ├── base58.go                  Base58Check encode/decode
 │   └── utils.go                   IntToHex, helpers
 │
-├── Express Backend
-│   └── backend/
-│       ├── server.js              App setup, CORS, route mounting
-│       ├── db.js                  MongoDB connection helper
-│       ├── goRunner.js            execFile wrapper — calls Go binary
-│       ├── models/
-│       │   ├── Block.js           Mongoose schema for cached blocks
-│       │   ├── Wallet.js          Mongoose schema for wallet metadata
-│       │   └── TxLog.js           Mongoose schema for transaction history
-│       └── routes/
-│           ├── blockchain.js      /api/blockchain/* — parseChain, sync to Mongo
-│           ├── wallet.js          /api/wallet/* — list, create, delete, label
-│           ├── transaction.js     /api/transaction/* — send, history
-│           └── system.js          /api/mine, /api/health, /api/reset, /api/utxo
+├── Express Backend  (backend/)
+│   ├── server.js                  App setup, CORS, route mounting
+│   ├── db.js                      MongoDB connection helper
+│   ├── goRunner.js                execFile wrapper — calls Go binary
+│   ├── models/
+│   │   ├── Block.js               Mongoose schema for cached blocks
+│   │   ├── Wallet.js              Mongoose schema for wallet metadata
+│   │   ├── TxLog.js               Mongoose schema for transaction history
+│   │   ├── Fork.js                Mongoose schema for fork state
+│   │   └── MempoolTx.js           Mongoose schema for mempool transactions
+│   └── routes/
+│       ├── blockchain.js          /api/blockchain/* — parseChain, sync to Mongo
+│       ├── wallet.js              /api/wallet/* — list, create, delete, label
+│       ├── transaction.js         /api/transaction/* — send, history
+│       ├── mempool.js             /api/mempool/* — submit, mine, reject
+│       ├── fork.js                /api/fork/* — simulate, resolve
+│       ├── p2p.js                 /api/p2p/* — start, stop, peers
+│       ├── validate.js            /api/validate/* — block validation
+│       └── system.js              /api/mine, /api/health, /api/reset, /api/utxo
 │
-├── React Frontend
-│   └── frontend/src/
-│       ├── main.tsx               React entry point
-│       └── app/
-│           ├── App.tsx            Shell layout, sidebar nav, page routing
-│           ├── api.ts             Typed API client — all fetch() calls
-│           └── components/
-│               ├── Dashboard.tsx      Stats cards, TX chart, quick actions
-│               ├── BlockExplorer.tsx  Chain visualization, block detail cards
-│               ├── Wallets.tsx        Wallet list, create, delete, label edit
-│               ├── Mining.tsx         PoW simulation + real mine backend call
-│               ├── SendTransaction.tsx UTXO send form with animated flow
-│               └── TxHistory.tsx      Transaction history table with filters
+├── React Frontend  (frontend/src/)
+│   ├── index.js                   React entry point
+│   ├── App.js                     Shell layout, sidebar nav, page routing
+│   ├── api.js                     API client — all axios calls
+│   └── pages/
+│       ├── Dashboard.jsx          Stats cards, 7-day TX chart, quick actions
+│       ├── Explorer.jsx           Chain visualization, block detail cards
+│       ├── Wallets.jsx            Wallet list, create, delete, label edit
+│       ├── Mining.jsx             PoW simulation + real mine backend call
+│       ├── Send.jsx               UTXO send form
+│       ├── Transactions.jsx       Transaction history table with filters
+│       ├── Mempool.jsx            Mempool viewer and miner
+│       ├── Validator.jsx          Block validation tool
+│       ├── ForkResolution.jsx     Fork simulation and resolution
+│       └── Network.jsx            P2P network status and peer management
 │
-└── Docker
-    ├── docker-compose.yml         Orchestrates 4 services + 2 named volumes
-    ├── Dockerfile.go              Multi-stage: build Go binary → copy to /go-bin
-    ├── Dockerfile.backend         node:20-alpine, copies binary from /go-bin
-    ├── Dockerfile.frontend        node:20-alpine, pnpm dev with Docker Vite config
-    └── Dockerfile.landing         Next.js landing page
+├── Docker
+│   ├── docker-compose.yml         Orchestrates services + named volumes
+│   ├── Dockerfile.go              Multi-stage: build Go binary → copy to /go-bin
+│   ├── Dockerfile.backend         node:20-alpine, copies binary from /go-bin
+│   ├── Dockerfile.frontend        Vite dev server with Docker config
+│   ├── Dockerfile.render          Single-stage build for Render deployment
+│   └── Dockerfile.landing         Next.js landing page
+│
+└── Deployment
+    ├── render.yaml                Render Blueprint — backend on free plan
+    └── frontend/vercel.json       Vercel rewrites — /api/* → Render backend
 ```
 
 ---
@@ -853,4 +915,7 @@ ChainForge-Blockchain-in-Go/
    Blockchain       Linked blocks stored in BoltDB        blockchain.go
    UTXO index       chainstate BoltDB bucket              utxo_set.go Reindex()
    API cache        MongoDB mirrors chain for REST layer  backend/models/
+   Mempool          Pending tx pool before mining         routes/mempool.js
+   Fork             Chain split, resolved by longest rule routes/fork.js
+   P2P              TCP gossip between nodes              blockchain/server.go
 ```
