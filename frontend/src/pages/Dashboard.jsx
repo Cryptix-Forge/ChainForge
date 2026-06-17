@@ -97,12 +97,13 @@ export default function Dashboard({ toast }) {
                 ) : (
                   <div className="chart-wrap">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                      <BarChart data={chartData} margin={{ top: 4, right: 24, left: -20, bottom: 0 }}>
                         <XAxis
                           dataKey="day"
                           tick={{ fill: "var(--ink3)", fontSize: 10, fontFamily: "var(--sans)" }}
                           axisLine={false}
                           tickLine={false}
+                          padding={{ left: 20, right: 20 }}
                         />
                         <YAxis
                           tick={{ fill: "var(--ink3)", fontSize: 10, fontFamily: "var(--sans)" }}
