@@ -25,12 +25,17 @@ export default function Dashboard({ toast }) {
   useEffect(() => { load(); }, []);
 
   const chartData = (() => {
-    const days = {};
-    txs.forEach((tx) => {
-      const d = new Date(tx.createdAt).toLocaleDateString("en", { weekday: "short" });
-      days[d] = (days[d] || 0) + tx.amount;
+    const result = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return { day: d.toLocaleDateString("en", { weekday: "short" }), val: 0, date: d.toDateString() };
     });
-    return Object.entries(days).slice(-7).map(([day, val]) => ({ day, val }));
+    txs.forEach((tx) => {
+      const txDate = new Date(tx.timestamp).toDateString();
+      const entry = result.find((r) => r.date === txDate);
+      if (entry) entry.val += tx.amount;
+    });
+    return result;
   })();
 
   const successTx = txs.filter((t) => t.status === "success").length;
